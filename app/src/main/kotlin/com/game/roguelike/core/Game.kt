@@ -131,14 +131,22 @@ class Game(private val context: Context) {
 
         // Process attack input
         if (input.consumeAttack()) {
-            when (player.stateMachine.currentState) {
-                PlayerState.IDLE, PlayerState.RUN -> {
-                    player.startAttack1(this)
+            // Check merchant interaction first
+            val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer(player) } == true
+            if (nearMerchant) {
+                merchant!!.talked = true
+                shop.open(gold)
+                gameState = GameState.SHOP
+            } else {
+                when (player.stateMachine.currentState) {
+                    PlayerState.IDLE, PlayerState.RUN -> {
+                        player.startAttack1(this)
+                    }
+                    PlayerState.ATTACK1, PlayerState.ATTACK2 -> {
+                        player.tryComboAttack(this)
+                    }
+                    else -> {}
                 }
-                PlayerState.ATTACK1, PlayerState.ATTACK2 -> {
-                    player.tryComboAttack(this)
-                }
-                else -> {}
             }
         }
 
@@ -217,14 +225,6 @@ class Game(private val context: Context) {
                 if (player.position.distanceTo(particle.position) < 25f) {
                     player.takeDamage(particle.damage.toInt(), this)
                 }
-            }
-        }
-
-        // Check merchant collision
-        merchant?.let { m ->
-            if (!shop.isOpen && m.isCollidingWith(player)) {
-                shop.open(gold)
-                gameState = GameState.SHOP
             }
         }
 

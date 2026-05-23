@@ -306,9 +306,16 @@ class IsometricRenderer {
             canvas.scale(-1f, 1f, sx, sy)
         }
 
-        // Animation values
-        val bob = if (isRunning) (sin(player.moveAnimPhase * Math.PI * 2) * 3f).toFloat() else 0f
-        val legSwing = if (isRunning) (sin(player.moveAnimPhase * Math.PI * 2) * 6f).toFloat() else 0f
+        // Smooth animation using walkBlend for transitions
+        val wb = player.walkBlend
+        val phase = player.moveAnimPhase
+        val walkSin = sin(phase * Math.PI * 2).toFloat()
+
+        // Walk bob scales with blend (2px max, gentle)
+        val bob = walkSin * 2f * wb
+        // Leg swing scales with blend (4px max)
+        val legSwing = walkSin * 4f * wb
+        // Idle breathing (separate, always active)
         val breathe = if (isIdle) (sin(player.idleTime * 2.5f) * 1f).toFloat() else 0f
         val bodyOffset = bob + breathe
 
@@ -317,10 +324,8 @@ class IsometricRenderer {
 
         // === LEGS ===
         paint.style = Paint.Style.FILL
-        // Left leg
         paint.color = Color.parseColor("#992222")
         canvas.drawRect(sx - 8f, sy - 6f, sx - 2f, sy + 8f + legSwing, paint)
-        // Right leg
         canvas.drawRect(sx + 2f, sy - 6f, sx + 8f, sy + 8f - legSwing, paint)
         // Boots
         paint.color = Color.parseColor("#661111")
@@ -329,12 +334,11 @@ class IsometricRenderer {
 
         // === CAPE ===
         paint.color = Color.parseColor("#881111")
-        val capeSwing = if (isRunning) (sin(player.moveAnimPhase * Math.PI * 2 + 1f) * 4f).toFloat() else (sin(player.idleTime * 1.5f) * 1f).toFloat()
-        // Cape left side
+        val capeWalk = walkSin * 3f * wb
+        val capeIdle = if (isIdle) (sin(player.idleTime * 1.5f) * 1f).toFloat() else 0f
+        val capeSwing = capeWalk + capeIdle
         canvas.drawRect(sx - 13f + capeSwing, sy - 36f + bodyOffset, sx - 6f + capeSwing * 0.5f, sy - 8f + bodyOffset, paint)
-        // Cape right side
         canvas.drawRect(sx + 6f - capeSwing * 0.5f, sy - 36f + bodyOffset, sx + 13f - capeSwing, sy - 8f + bodyOffset, paint)
-        // Cape trim
         paint.color = Color.parseColor("#AA2222")
         canvas.drawRect(sx - 13f + capeSwing, sy - 36f + bodyOffset, sx - 12f + capeSwing, sy - 8f + bodyOffset, paint)
         canvas.drawRect(sx + 12f - capeSwing, sy - 36f + bodyOffset, sx + 13f - capeSwing, sy - 8f + bodyOffset, paint)
@@ -343,30 +347,23 @@ class IsometricRenderer {
         paint.color = bodyColor
         paint.style = Paint.Style.FILL
         canvas.drawRect(sx - 10f, sy - 38f + bodyOffset, sx + 10f, sy - 6f + bodyOffset, paint)
-        // Armor plate
         paint.color = Color.parseColor("#DD4444")
         canvas.drawRect(sx - 8f, sy - 36f + bodyOffset, sx + 8f, sy - 22f + bodyOffset, paint)
-        // Armor trim
         paint.color = Color.parseColor("#EE6666")
         canvas.drawRect(sx - 8f, sy - 36f + bodyOffset, sx + 8f, sy - 34f + bodyOffset, paint)
-        // Belt
         paint.color = Color.parseColor("#886633")
         canvas.drawRect(sx - 10f, sy - 10f + bodyOffset, sx + 10f, sy - 6f + bodyOffset, paint)
-        // Belt buckle
         paint.color = Color.parseColor("#FFD700")
         canvas.drawRect(sx - 2f, sy - 10f + bodyOffset, sx + 2f, sy - 6f + bodyOffset, paint)
 
         // === ARMS ===
         paint.color = bodyColor
-        // Left arm
-        val armSwing = if (isRunning) (sin(player.moveAnimPhase * Math.PI * 2 + 0.5f) * 3f).toFloat() else 0f
-        canvas.drawRect(sx - 14f, sy - 34f + bodyOffset, sx - 10f, sy - 14f + bodyOffset + armSwing, paint)
-        // Right arm (holds sword)
-        canvas.drawRect(sx + 10f, sy - 34f + bodyOffset, sx + 14f, sy - 14f + bodyOffset - armSwing, paint)
-        // Gauntlets
+        val armWalk = sin(phase * Math.PI * 2 + 0.5f).toFloat() * 2f * wb
+        canvas.drawRect(sx - 14f, sy - 34f + bodyOffset, sx - 10f, sy - 14f + bodyOffset + armWalk, paint)
+        canvas.drawRect(sx + 10f, sy - 34f + bodyOffset, sx + 14f, sy - 14f + bodyOffset - armWalk, paint)
         paint.color = Color.parseColor("#DD4444")
-        canvas.drawRect(sx - 15f, sy - 18f + bodyOffset + armSwing, sx - 9f, sy - 14f + bodyOffset + armSwing, paint)
-        canvas.drawRect(sx + 9f, sy - 18f + bodyOffset - armSwing, sx + 15f, sy - 14f + bodyOffset - armSwing, paint)
+        canvas.drawRect(sx - 15f, sy - 18f + bodyOffset + armWalk, sx - 9f, sy - 14f + bodyOffset + armWalk, paint)
+        canvas.drawRect(sx + 9f, sy - 18f + bodyOffset - armWalk, sx + 15f, sy - 14f + bodyOffset - armWalk, paint)
 
         // === HEAD ===
         paint.color = Color.parseColor("#FFCC99")
@@ -376,22 +373,17 @@ class IsometricRenderer {
         // === HAIR ===
         paint.color = Color.parseColor("#FFFFFF")
         canvas.drawRect(sx - 8f, sy - 52f + bodyOffset, sx + 8f, sy - 44f + bodyOffset, paint)
-        // Hair strands flowing
-        val hairSwing = if (isRunning) (sin(player.moveAnimPhase * Math.PI * 2 + 2f) * 2f).toFloat() else 0f
-        canvas.drawRect(sx - 10f + hairSwing, sy - 50f + bodyOffset, sx - 6f + hairSwing, sy - 40f + bodyOffset, paint)
-        canvas.drawRect(sx + 6f - hairSwing, sy - 50f + bodyOffset, sx + 10f - hairSwing, sy - 42f + bodyOffset, paint)
-        // Hair highlight
+        val hairWalk = walkSin * 1.5f * wb
+        canvas.drawRect(sx - 10f + hairWalk, sy - 50f + bodyOffset, sx - 6f + hairWalk, sy - 40f + bodyOffset, paint)
+        canvas.drawRect(sx + 6f - hairWalk, sy - 50f + bodyOffset, sx + 10f - hairWalk, sy - 42f + bodyOffset, paint)
         paint.color = Color.parseColor("#EEEEFF")
         canvas.drawRect(sx - 4f, sy - 51f + bodyOffset, sx + 2f, sy - 46f + bodyOffset, paint)
 
         // === FACE ===
-        // Eyes
         paint.color = Color.parseColor("#222266")
         canvas.drawCircle(sx + 3f, sy - 45f + bodyOffset, 1.5f, paint)
-        // Eye glow (determined look)
         paint.color = Color.parseColor("#4444AA")
         canvas.drawCircle(sx + 3f, sy - 45.5f + bodyOffset, 0.8f, paint)
-        // Mouth (slight smirk)
         paint.color = Color.parseColor("#CC8866")
         canvas.drawPoint(sx + 2f, sy - 41f + bodyOffset, paint)
 
@@ -403,20 +395,17 @@ class IsometricRenderer {
             paint.color = Color.argb(80, 100, 150, 255)
             paint.style = Paint.Style.FILL
             canvas.drawOval(sx - 18f, sy - 35f, sx + 18f, sy + 8f, paint)
-            // Afterimage
             paint.color = Color.argb(40, 150, 180, 255)
             canvas.drawOval(sx - 14f, sy - 30f, sx + 14f, sy + 4f, paint)
         }
 
         // === RUNNING EFFECTS ===
-        if (isRunning) {
-            // Dust particles
-            val dustAlpha = (abs(legSwing) / 6f * 80f).toInt().coerceIn(0, 80)
+        if (wb > 0.1f) {
+            val dustAlpha = (wb * 60f).toInt().coerceIn(0, 60)
             paint.color = Color.argb(dustAlpha, 180, 160, 140)
             paint.style = Paint.Style.FILL
             canvas.drawCircle(sx - 6f, sy + 12f, 2.5f, paint)
             canvas.drawCircle(sx + 6f, sy + 12f, 2.5f, paint)
-            // Speed lines
             paint.color = Color.argb(dustAlpha / 2, 200, 180, 160)
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 1f
@@ -425,7 +414,7 @@ class IsometricRenderer {
         }
 
         // === IDLE GLOW ===
-        if (isIdle) {
+        if (isIdle && wb < 0.1f) {
             val glowPulse = (sin(player.idleTime * 2f) * 0.3f + 0.7f)
             paint.color = Color.argb((20 * glowPulse).toInt(), 255, 200, 100)
             paint.style = Paint.Style.FILL
@@ -566,10 +555,12 @@ class IsometricRenderer {
         val isMoving = enemy.stateMachine.currentState == EnemyState.CHASE || enemy.stateMachine.currentState == EnemyState.PATROL
         val isIdle = enemy.stateMachine.currentState == EnemyState.IDLE
         val isHurt = enemy.stateMachine.currentState == EnemyState.HURT
-        val bob = if (isMoving) (sin(enemy.moveAnimPhase * Math.PI * 2) * 2f).toFloat() else 0f
+        val wb = enemy.walkBlend
+        val walkSin = sin(enemy.moveAnimPhase * Math.PI * 2).toFloat()
+        val bob = walkSin * 2f * wb
         val breathe = if (isIdle) (sin(enemy.idleTime * 2f) * 1f).toFloat() else 0f
         val bodyOffset = bob + breathe
-        val legSwing = if (isMoving) (sin(enemy.moveAnimPhase * Math.PI * 2) * 4f).toFloat() else 0f
+        val legSwing = walkSin * 3f * wb
 
         // Hurt flash
         val hurtFlash = isHurt && enemy.stateTimer % 0.1f < 0.05f
@@ -1358,7 +1349,7 @@ class IsometricRenderer {
         }
     }
 
-    fun renderMerchant(canvas: Canvas, merchant: Merchant) {
+    fun renderMerchant(canvas: Canvas, merchant: Merchant, isNearPlayer: Boolean = false) {
         val (sx, sy) = worldToScreen(merchant.position)
 
         paint.style = Paint.Style.FILL
@@ -1420,12 +1411,19 @@ class IsometricRenderer {
         paint.color = Color.parseColor("#CC8866")
         canvas.drawPoint(sx, sy - 33f + breathe, paint)
 
-        // "Talk" indicator
+        // Interaction indicator
         val bounce = sin(globalTime * 4f) * 3f
-        paint.color = Color.parseColor("#FFD700")
-        textPaint.color = Color.parseColor("#FFD700")
-        textPaint.textSize = 20f
-        canvas.drawText("!", sx - 3f, sy - 55f + bounce, textPaint)
+        if (isNearPlayer && !merchant.talked) {
+            textPaint.color = Color.parseColor("#FFD700")
+            textPaint.textSize = 18f
+            textPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText("按攻对话", sx, sy - 55f + bounce, textPaint)
+        } else if (!merchant.talked) {
+            textPaint.color = Color.parseColor("#FFD700")
+            textPaint.textSize = 20f
+            textPaint.textAlign = Paint.Align.CENTER
+            canvas.drawText("!", sx, sy - 55f + bounce, textPaint)
+        }
     }
 
     fun renderMenu(canvas: Canvas, w: Int, h: Int) {

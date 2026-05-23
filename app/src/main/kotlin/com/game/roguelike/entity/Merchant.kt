@@ -10,19 +10,18 @@ class Merchant(spawnPos: Vector2) : Entity() {
     override var width = 16f
     override var height = 40f
 
+    var talked = false
+    var isNearPlayer = false
+
     init {
         position = Vector2(spawnPos.x, spawnPos.y)
     }
 
-    fun isCollidingWith(player: Player): Boolean {
-        return position.distanceTo(player.position) < 40f
-    }
-
     override fun update(dt: Float, game: Game) {
-        // Merchant doesn't move
+        isNearPlayer = position.distanceTo(game.player.position) < 60f
     }
 
     override fun render(canvas: Canvas, renderer: IsometricRenderer) {
-        renderer.renderMerchant(canvas, this)
+        renderer.renderMerchant(canvas, this, isNearPlayer)
     }
 }

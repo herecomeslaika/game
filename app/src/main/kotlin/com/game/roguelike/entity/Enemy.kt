@@ -76,6 +76,8 @@ class Enemy(
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
     var idleTime = 0f
+    // Smooth walk blend for transitions
+    var walkBlend = 0f
 
     init {
         position = Vector2(spawnPos.x, spawnPos.y)
@@ -170,19 +172,22 @@ class Enemy(
             EnemyState.DEAD -> {}
         }
 
-        // Update animation
+        // Update animation - smooth transitions
         when (stateMachine.currentState) {
             EnemyState.CHASE, EnemyState.PATROL -> {
-                moveAnimTime += dt * 8f
-                moveAnimPhase = moveAnimTime % 1f
+                walkBlend = minOf(1f, walkBlend + dt * 6f)
+                moveAnimTime += dt
+                moveAnimPhase = moveAnimTime * 4f
                 idleTime = 0f
             }
             EnemyState.IDLE -> {
-                moveAnimTime = 0f
-                moveAnimPhase = 0f
+                walkBlend = maxOf(0f, walkBlend - dt * 5f)
                 idleTime += dt
             }
-            else -> idleTime = 0f
+            else -> {
+                walkBlend = maxOf(0f, walkBlend - dt * 5f)
+                idleTime = 0f
+            }
         }
 
         // Update shield direction

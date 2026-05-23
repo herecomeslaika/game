@@ -84,6 +84,8 @@ class Player : Entity() {
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
     var idleTime = 0f
+    // Smooth transition blend: 0 = idle pose, 1 = full walk animation
+    var walkBlend = 0f
 
     val stateMachine = StateMachine(PlayerState.IDLE)
 
@@ -94,6 +96,10 @@ class Player : Entity() {
         velocity = Vector2.ZERO
         comboStep = 0
         facingRight = true
+        walkBlend = 0f
+        moveAnimTime = 0f
+        moveAnimPhase = 0f
+        idleTime = 0f
         stateMachine.transitionTo(PlayerState.IDLE)
         attackDamage1 = 8f
         attackDamage2 = 10f
@@ -172,9 +178,11 @@ class Player : Entity() {
     private fun updateIdle(dt: Float, game: Game) {
         val input = game.inputManager ?: return
         velocity = Vector2.ZERO
-        // Reset walk animation so idle pose is stable
-        moveAnimTime = 0f
-        moveAnimPhase = 0f
+        // Smoothly fade out walk animation instead of hard reset
+        walkBlend = maxOf(0f, walkBlend - dt * 5f)
+        if (moveAnimTime > 0f) {
+            moveAnimTime = maxOf(0f, moveAnimTime - dt * 3f)
+        }
         idleTime += dt
         if (input.joystickDirection.magnitude > 0.1f) {
             idleTime = 0f
@@ -184,6 +192,11 @@ class Player : Entity() {
 
     private fun updateRun(dt: Float, game: Game) {
         val input = game.inputManager ?: return
+        // Smoothly blend in walk animation
+        walkBlend = minOf(1f, walkBlend + dt * 6f)
+        // Advance walk cycle continuously
+        moveAnimTime += dt
+        moveAnimPhase = moveAnimTime * 4f
 
         val moveDir = input.joystickDirection
         if (moveDir.magnitude > 0.1f) {
@@ -202,17 +215,13 @@ class Player : Entity() {
             // Only update facing when there's active joystick input
             if (worldDir.x > 0.15f) facingRight = true
             else if (worldDir.x < -0.15f) facingRight = false
-
-            moveAnimTime += dt * 8f
-            moveAnimPhase = moveAnimTime % 1f
         } else {
             // Decelerate smoothly, lock facing during deceleration
+            walkBlend = maxOf(0f, walkBlend - dt * 4f)
             velocity.x += (0f - velocity.x) * 10f * dt
             velocity.y += (0f - velocity.y) * 10f * dt
             if (velocity.magnitude < 5f) {
                 velocity = Vector2.ZERO
-                moveAnimTime = 0f
-                moveAnimPhase = 0f
                 stateMachine.transitionTo(PlayerState.IDLE)
             } else {
                 // Still moving from deceleration, apply position change
