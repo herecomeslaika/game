@@ -114,13 +114,43 @@ app/src/main/kotlin/com/game/roguelike/
 
 ## 构建与运行
 
-```bash
-# 使用 Gradle 构建
-./gradlew assembleDebug
+### 环境要求
+- JDK 17+（Android Gradle Plugin 8.2 需要 Java 11+，推荐 JDK 17）
+- Android SDK（已安装 platform 34、build-tools 34.0.0）
+- 系统默认 JDK 可能是 Java 8（32位），无法运行构建，需手动指定 JDK 17+
 
-# 或在 Android Studio 中直接运行
+### 命令行构建
+
+```bash
+# 1. 设置 JAVA_HOME 为 JDK 17+（Windows 示例）
+#    常见 JDK 17 路径：
+#    - JetBrains Runtime: C:\Users\<用户名>\.jdks\jbr-17.0.14
+#    - Android Studio 内置: C:\Program Files\Android\Android Studio\jbr
+export JAVA_HOME="/c/Users/杰拉德/.jdks/jbr-17.0.14"   # Git Bash / Linux
+set JAVA_HOME=C:\Users\杰拉德\.jdks\jbr-17.0.14         # CMD
+
+# 2. 构建 Debug APK
+./gradlew.bat assembleDebug          # Windows
+./gradlew assembleDebug              # Linux / macOS
+
+# 3. APK 输出路径
+# app/build/outputs/apk/debug/app-debug.apk
+
+# 4. 安装到设备（需连接 Android 设备或启动模拟器）
+adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### IDE 构建
+在 Android Studio 中直接打开项目，点击 Run 即可。确保 Android Studio 使用的 JDK 为 17+（Settings → Build → Gradle → Gradle JDK）。
+
+### 常见构建问题
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| `Invalid maximum heap size: -Xmx4096m` | 使用了 32位 JDK（Client VM） | 设置 JAVA_HOME 为 64位 JDK 17+ |
+| `No matching variant...compatible with Java 8` | AGP 8.2 不兼容 Java 8 | 设置 JAVA_HOME 为 JDK 11+ |
+| 构建卡死/OOM | 默认 heap 设置过大 | 修改 `gradle.properties` 中 `-Xmx` 值（32位 JDK 改为 `-Xmx1024m`） |
+
+### 运行
 横屏模式运行，推荐使用平板或大屏手机以获得最佳操作体验。
 
 ## 战斗系统详解
