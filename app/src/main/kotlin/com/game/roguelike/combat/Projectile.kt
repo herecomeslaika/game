@@ -12,7 +12,8 @@ enum class ProjectileType {
     MAGIC_BOLT,
     FIREBALL,
     SPEAR,
-    ZEUS_BOLT
+    ZEUS_BOLT,
+    METEOR
 }
 
 class Projectile(

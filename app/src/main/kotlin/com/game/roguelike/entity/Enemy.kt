@@ -10,6 +10,9 @@ import com.game.roguelike.util.StateMachine
 import com.game.roguelike.util.Vector2
 import kotlin.random.Random
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 enum class EnemyType {
     SKELETON, WRAITH, MEGA_SKELETON,
@@ -52,11 +55,15 @@ class Enemy(
     // Phase (for bosses)
     var phase = 0
     var phaseThreshold = 0.5f
+    var phaseThresholds = floatArrayOf()
+    var isPhaseTransitioning = false
+    var phaseTransitionTimer = 0f
 
     // Summon (for mega skeleton)
     var canSummon = false
     var summonCooldown = 5f
     var summonTimer = 0f
+    var summonCount = 2
 
     // Fire trail (for flame dancer)
     var leavesFireTrail = false
@@ -72,12 +79,83 @@ class Enemy(
     val stateMachine = StateMachine(EnemyState.IDLE)
     private var patrolTarget = Vector2.ZERO
     var stateTimer = 0f
+
     // Animation state
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
     var idleTime = 0f
-    // Smooth walk blend for transitions
     var walkBlend = 0f
+
+    // --- New attack pattern fields ---
+
+    // PREPARE_ATTACK wind-up
+    private var prepareAttackTimer = 0f
+
+    // Skeleton combo
+    var comboCount = 0
+    var comboTimer = 0f
+
+    // Wraith phase shift
+    var canPhaseShift = false
+    var phaseShiftCooldown = 4f
+    var phaseShiftTimer = 0f
+
+    // Flame dancer dash
+    var canFlameDash = false
+    var flameDashCooldown = 2.5f
+    var flameDashTimer = 0f
+    var isFlameDashing = false
+    var flameDashDuration = 0f
+    var flameDashDir = Vector2.ZERO
+
+    // Lava caster
+    var castCount = 0
+    var lavaPoolTimer = 5f
+
+    // Shield bearer bash
+    var shieldBashCooldown = 3f
+    var shieldBashTimer = 0f
+    var isShieldBashing = false
+    var shieldBashDuration = 0f
+    var shieldBashDir = Vector2.ZERO
+    var shieldThrown = false
+
+    // Spear thrower
+    var multiSpearCount = 0
+    var multiSpearTimer = 0f
+    var isRetreating = false
+
+    // Mega Skeleton ground slam
+    var canGroundSlam = false
+    var groundSlamCooldown = 3f
+    var groundSlamTimer = 0f
+    var isGroundSlamming = false
+    var groundSlamPhase = 0 // 0=jumping up, 2=landing
+    var groundSlamHoverTimer = 0f
+
+    // Inferno Titan charge combo + meteor
+    var chargeComboCount = 0
+    var chargeComboMax = 1
+    var chargePauseTimer = 0f
+    var meteorCooldown = 8f
+    var meteorTimer = 0f
+    var canMeteor = false
+    var meteorTargetPos = Vector2.ZERO
+    var isCastingMeteor = false
+    var meteorCastTimer = 0f
+
+    // Champion melee combo + dodge
+    var meleeComboStep = 0
+    var meleeComboTimer = 0f
+    var canDodgeRoll = false
+    var dodgeRollCooldown = 8f
+    var dodgeRollTimer = 0f
+    var isDodging = false
+    var dodgeRollDuration = 0f
+    var dodgeRollDir = Vector2.ZERO
+
+    // Hurt
+    var hurtTimer = 0f
 
     init {
         position = Vector2(spawnPos.x, spawnPos.y)
@@ -96,24 +174,30 @@ class Enemy(
                 isRanged = true; projectileSpeed = 180f; projectileType = ProjectileType.MAGIC_BOLT
                 attackRange = 200f; attackCooldown = 2f; goldDrop = 12
                 name = "幽灵"
+                canPhaseShift = true; phaseShiftCooldown = 4f; phaseShiftTimer = 0f
             }
             EnemyType.MEGA_SKELETON -> {
                 maxHealth = 200; health = 200; speed = 60f; attackDamage = 15
                 attackRange = 50f; attackCooldown = 1.5f; goldDrop = 100
                 canSummon = true; width = 32f; height = 60f
                 name = "巨型骷髅"
+                phaseThresholds = floatArrayOf(0.6f, 0.3f)
+                groundSlamCooldown = 3f; groundSlamTimer = 0f
+                summonCount = 2
             }
             EnemyType.FLAME_DANCER -> {
                 maxHealth = 40; health = 40; speed = 140f; attackDamage = 10
                 attackRange = 35f; attackCooldown = 0.8f; goldDrop = 15
                 leavesFireTrail = true
                 name = "火焰舞者"
+                canFlameDash = true; flameDashCooldown = 2.5f; flameDashTimer = 0f
             }
             EnemyType.LAVA_CASTER -> {
                 maxHealth = 35; health = 35; speed = 50f; attackDamage = 12
                 isRanged = true; projectileSpeed = 200f; projectileType = ProjectileType.FIREBALL
                 attackRange = 250f; attackCooldown = 1.8f; goldDrop = 18
                 name = "熔岩术士"
+                castCount = 0; lavaPoolTimer = 5f
             }
             EnemyType.INFERNO_TITAN -> {
                 maxHealth = 350; health = 350; speed = 50f; attackDamage = 20
@@ -121,18 +205,23 @@ class Enemy(
                 attackRange = 200f; attackCooldown = 2f; goldDrop = 150
                 canCharge = true; width = 40f; height = 70f
                 name = "炼狱泰坦"
+                phaseThresholds = floatArrayOf(0.5f)
+                chargeComboCount = 0; chargeComboMax = 3
+                meteorCooldown = 8f; meteorTimer = 0f; canMeteor = false
             }
             EnemyType.SHIELD_BEARER -> {
                 maxHealth = 60; health = 60; speed = 70f; attackDamage = 10
                 attackRange = 40f; attackCooldown = 1.5f; goldDrop = 20
                 hasShield = true
                 name = "持盾守卫"
+                shieldBashCooldown = 3f; shieldBashTimer = 0f; shieldThrown = false
             }
             EnemyType.SPEAR_THROWER -> {
                 maxHealth = 45; health = 45; speed = 60f; attackDamage = 14
                 isRanged = true; projectileSpeed = 250f; projectileType = ProjectileType.SPEAR
                 attackRange = 300f; attackCooldown = 2f; goldDrop = 22
                 name = "投矛手"
+                multiSpearCount = 0; multiSpearTimer = 0f
             }
             EnemyType.CHAMPION -> {
                 maxHealth = 500; health = 500; speed = 70f; attackDamage = 18
@@ -140,13 +229,137 @@ class Enemy(
                 attackRange = 150f; attackCooldown = 1.5f; goldDrop = 200
                 hasShield = true; width = 32f; height = 60f
                 name = "冠军勇士"
+                phaseThresholds = floatArrayOf(0.5f)
+                meleeComboStep = 0; meleeComboTimer = 0f
+                canDodgeRoll = false; dodgeRollCooldown = 8f; dodgeRollTimer = 0f
             }
+        }
+    }
+
+    fun takeDamage(amount: Float, game: Game) {
+        if (isDead || isDodging || isPhaseTransitioning) return
+
+        // Shield check
+        if (hasShield && !shieldThrown && !isShieldBashing) {
+            val playerDir = if (game.player.position.x > position.x) 1 else -1
+            if (playerDir == shieldDirection) {
+                // Blocked! Reduce damage by 80%
+                health -= (amount * 0.2f).toInt()
+                // Knockback on block
+                val knockDir = if (position.x > game.player.position.x) 1f else -1f
+                position.x += knockDir * 20f
+                if (health <= 0) {
+                    health = 0
+                    isDead = true
+                    deathAnimationDone = true
+                    stateMachine.transitionTo(EnemyState.DEAD)
+                }
+                return
+            }
+        }
+
+        health -= amount.toInt()
+        stateMachine.transitionTo(EnemyState.HURT)
+        stateTimer = 0f
+        hurtTimer = 0.2f
+
+        // Hit particles
+        for (i in 0..3) {
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2((Random.nextFloat() - 0.5f) * 80f, (Random.nextFloat() - 0.5f) * 80f),
+                color = android.graphics.Color.WHITE,
+                life = 0.3f,
+                size = 2f
+            ))
+        }
+
+        if (health <= 0) {
+            health = 0
+            isDead = true
+            deathAnimationDone = true
+            stateMachine.transitionTo(EnemyState.DEAD)
+
+            // Death particles
+            for (i in 0..8) {
+                game.particles.add(Particle(
+                    position = Vector2(position.x, position.y),
+                    velocity = Vector2((Random.nextFloat() - 0.5f) * 120f, (Random.nextFloat() - 0.5f) * 120f),
+                    color = android.graphics.Color.parseColor("#FF6644"),
+                    life = 0.6f,
+                    size = 4f
+                ))
+            }
+        } else {
+            checkPhaseTransition(game)
+        }
+    }
+
+    private fun checkPhaseTransition(game: Game) {
+        if (!isBoss || phaseThresholds.isEmpty()) return
+        val hpRatio = health.toFloat() / maxHealth.toFloat()
+        val nextPhase = phase + 1
+        if (nextPhase <= phaseThresholds.size && hpRatio <= phaseThresholds[nextPhase - 1]) {
+            enterNextPhase(game)
+        }
+    }
+
+    private fun enterNextPhase(game: Game) {
+        phase++
+        isPhaseTransitioning = true
+        phaseTransitionTimer = 0.5f
+        // Burst particles
+        for (i in 0..15) {
+            val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+            val spd = 80f + Random.nextFloat() * 60f
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2(cos(angle) * spd, sin(angle) * spd),
+                color = when (type) {
+                    EnemyType.MEGA_SKELETON -> android.graphics.Color.parseColor("#66FF66")
+                    EnemyType.INFERNO_TITAN -> android.graphics.Color.parseColor("#FF6633")
+                    EnemyType.CHAMPION -> android.graphics.Color.parseColor("#6699FF")
+                    else -> android.graphics.Color.WHITE
+                },
+                life = 0.6f,
+                size = 5f
+            ))
+        }
+        game.shake(6f, 0.2f)
+        // Type-specific phase changes
+        when (type) {
+            EnemyType.MEGA_SKELETON -> {
+                when (phase) {
+                    1 -> { canGroundSlam = true; summonCount = 3; summonCooldown = 4f; speed *= 1.4f }
+                    2 -> { attackDamage = (attackDamage * 1.5f).toInt(); summonCount = 4; summonCooldown = 3f }
+                }
+            }
+            EnemyType.INFERNO_TITAN -> {
+                when (phase) {
+                    1 -> { canMeteor = true; speed *= 1.5f; chargeComboMax = 1; meteorCooldown = 4f }
+                }
+            }
+            EnemyType.CHAMPION -> {
+                when (phase) {
+                    1 -> { canDodgeRoll = true; speed *= 1.6f; shieldThrown = true }
+                }
+            }
+            else -> {}
         }
     }
 
     override fun update(dt: Float, game: Game) {
         if (isDead) {
             deathAnimationDone = true
+            return
+        }
+
+        // Phase transition (invincible pause)
+        if (isPhaseTransitioning) {
+            phaseTransitionTimer -= dt
+            if (phaseTransitionTimer <= 0f) {
+                isPhaseTransitioning = false
+            }
             return
         }
 
@@ -159,17 +372,6 @@ class Enemy(
         }
         if (leavesFireTrail) {
             fireTrailTimer -= dt
-        }
-
-        val distToPlayer = position.distanceTo(game.player.position)
-
-        when (stateMachine.currentState) {
-            EnemyState.IDLE -> updateIdle(dt, game, distToPlayer)
-            EnemyState.PATROL -> updatePatrol(dt, game, distToPlayer)
-            EnemyState.CHASE -> updateChase(dt, game, distToPlayer)
-            EnemyState.ATTACK -> updateAttack(dt, game, distToPlayer)
-            EnemyState.HURT -> updateHurt(dt, game)
-            EnemyState.DEAD -> {}
         }
 
         // Update animation - smooth transitions
@@ -191,11 +393,75 @@ class Enemy(
         }
 
         // Update shield direction
-        if (hasShield) {
+        if (hasShield && !shieldThrown) {
             shieldDirection = if (game.player.position.x > position.x) 1 else -1
             facingRight = shieldDirection > 0
         }
+
+        // Type-specific continuous timers
+        updateTypeTimers(dt, game)
+
+        val distToPlayer = position.distanceTo(game.player.position)
+        val toPlayer = game.player.position - position
+
+        // Update facing (except during hurt/prepare_attack)
+        if (stateMachine.currentState != EnemyState.HURT && stateMachine.currentState != EnemyState.PREPARE_ATTACK) {
+            if (toPlayer.x > 5f) facingRight = true
+            else if (toPlayer.x < -5f) facingRight = false
+        }
+
+        when (stateMachine.currentState) {
+            EnemyState.IDLE -> updateIdle(dt, game, distToPlayer)
+            EnemyState.PATROL -> updatePatrol(dt, game, distToPlayer)
+            EnemyState.CHASE -> updateChase(dt, game, toPlayer, distToPlayer)
+            EnemyState.PREPARE_ATTACK -> updatePrepareAttack(dt, game, toPlayer)
+            EnemyState.ATTACK -> updateAttack(dt, game, toPlayer, distToPlayer)
+            EnemyState.HURT -> updateHurt(dt, game)
+            EnemyState.DEAD -> {}
+        }
     }
+
+    private fun updateTypeTimers(dt: Float, game: Game) {
+        // Wraith phase shift cooldown
+        if (canPhaseShift && phaseShiftTimer > 0f) phaseShiftTimer -= dt
+        // Flame dash cooldown
+        if (canFlameDash && flameDashTimer > 0f) flameDashTimer -= dt
+        // Shield bash cooldown
+        if (type == EnemyType.SHIELD_BEARER && shieldBashTimer > 0f) shieldBashTimer -= dt
+        // Dodge roll cooldown
+        if (canDodgeRoll && dodgeRollTimer > 0f) dodgeRollTimer -= dt
+        // Meteor cooldown
+        if (canMeteor && meteorTimer > 0f) meteorTimer -= dt
+        // Ground slam cooldown
+        if (canGroundSlam && groundSlamTimer > 0f) groundSlamTimer -= dt
+        // Combo timeout (skeleton)
+        if (comboTimer > 0f) {
+            comboTimer -= dt
+            if (comboTimer <= 0f) comboCount = 0
+        }
+        // Lava pool timer
+        if (type == EnemyType.LAVA_CASTER && lavaPoolTimer > 0f) {
+            lavaPoolTimer -= dt
+            if (lavaPoolTimer <= 0f) {
+                dropLavaPool(game)
+                lavaPoolTimer = 5f
+            }
+        }
+        // Multi-spear timer
+        if (multiSpearCount > 0 && multiSpearTimer > 0f) {
+            multiSpearTimer -= dt
+            if (multiSpearTimer <= 0f && multiSpearCount > 0) {
+                val dir = (game.player.position - position).normalized
+                fireSpear(game, dir)
+                multiSpearCount--
+                if (multiSpearCount > 0) multiSpearTimer = 0.15f
+            }
+        }
+    }
+
+    // ========================
+    // State update methods
+    // ========================
 
     private fun updateIdle(dt: Float, game: Game, distToPlayer: Float) {
         stateTimer += dt
@@ -224,26 +490,92 @@ class Enemy(
             val norm = dir.normalized
             position.x += norm.x * speed * 0.3f * dt
             position.y += norm.y * speed * 0.3f * dt
-            // Only flip facing on significant horizontal movement to avoid spinning
             if (abs(norm.x) > 0.3f) facingRight = norm.x > 0
         } else {
             stateMachine.transitionTo(EnemyState.IDLE)
         }
     }
 
-    private fun updateChase(dt: Float, game: Game, distToPlayer: Float) {
+    private fun updateChase(dt: Float, game: Game, toPlayer: Vector2, distToPlayer: Float) {
+        val player = game.player
+
         if (distToPlayer > aggroRange * 1.5f) {
             stateMachine.transitionTo(EnemyState.IDLE)
             return
         }
 
-        if (distToPlayer <= attackRange) {
-            stateMachine.transitionTo(EnemyState.ATTACK)
+        // Retreat behavior for spear throwers
+        if (type == EnemyType.SPEAR_THROWER && distToPlayer < 80f) {
+            isRetreating = true
+            val awayDir = (position - player.position).normalized
+            position.x += awayDir.x * speed * 0.6f * dt
+            position.y += awayDir.y * speed * 0.6f * dt
+            // Still attack while retreating
+            if (distToPlayer < attackRange && attackCooldownTimer <= 0f) {
+                startPrepareAttack(game, toPlayer)
+            }
+            return
+        }
+        isRetreating = false
+
+        // Wraith: phase shift when player gets too close
+        if (type == EnemyType.WRAITH && canPhaseShift && distToPlayer < 60f && phaseShiftTimer <= 0f) {
+            performPhaseShift(game)
             return
         }
 
-        val playerPos = game.player.position
-        val dir = (playerPos - position).normalized
+        // Flame dancer: flame dash at medium range
+        if (type == EnemyType.FLAME_DANCER && canFlameDash && !isFlameDashing &&
+            distToPlayer >= 80f && distToPlayer <= 120f && flameDashTimer <= 0f) {
+            startFlameDash(toPlayer)
+            return
+        }
+
+        // Continue flame dash
+        if (isFlameDashing) {
+            updateFlameDash(dt, game)
+            return
+        }
+
+        // Shield bearer: shield bash when close
+        if (type == EnemyType.SHIELD_BEARER && !shieldThrown && distToPlayer < 45f && shieldBashTimer <= 0f) {
+            startShieldBash(toPlayer)
+            return
+        }
+
+        // Continue shield bash
+        if (isShieldBashing) {
+            updateShieldBash(dt, game)
+            return
+        }
+
+        // Dodge roll (Champion)
+        if (isDodging) {
+            updateDodgeRoll(dt)
+            return
+        }
+
+        // Boss specials during chase
+        if (isBoss) {
+            // Mega Skeleton: summon minions
+            if (type == EnemyType.MEGA_SKELETON && canSummon && summonTimer <= 0f) {
+                summonMinions(game)
+                summonTimer = summonCooldown
+            }
+            // Inferno Titan: meteor
+            if (type == EnemyType.INFERNO_TITAN && canMeteor && meteorTimer <= 0f && distToPlayer > 60f) {
+                startMeteorCast(game)
+                return
+            }
+            // Continue meteor cast
+            if (isCastingMeteor) {
+                updateMeteorCast(dt, game)
+                return
+            }
+        }
+
+        // Move toward player
+        val dir = toPlayer.normalized
         position.x += dir.x * speed * dt
         position.y += dir.y * speed * dt
         if (abs(dir.x) > 0.15f) facingRight = dir.x > 0
@@ -282,24 +614,148 @@ class Enemy(
                 game.player.takeDamage(attackDamage * 2, game)
             }
         }
+
+        // Enter attack range
+        if (distToPlayer <= attackRange && !isCharging) {
+            if (attackCooldownTimer <= 0f) {
+                startPrepareAttack(game, toPlayer)
+            }
+        }
     }
 
-    private fun updateAttack(dt: Float, game: Game, distToPlayer: Float) {
-        if (attackCooldownTimer > 0) {
-            // Wait for cooldown
-            if (distToPlayer > attackRange * 1.5f) {
+    private fun updatePrepareAttack(dt: Float, game: Game, toPlayer: Vector2) {
+        prepareAttackTimer -= dt
+        // Face player during wind-up
+        if (toPlayer.x > 5f) facingRight = true
+        else if (toPlayer.x < -5f) facingRight = false
+
+        if (prepareAttackTimer <= 0f) {
+            stateMachine.transitionTo(EnemyState.ATTACK)
+        }
+    }
+
+    private fun startPrepareAttack(game: Game, toPlayer: Vector2, duration: Float = 0.3f) {
+        prepareAttackTimer = duration
+        stateMachine.transitionTo(EnemyState.PREPARE_ATTACK)
+        if (toPlayer.x > 5f) facingRight = true
+        else if (toPlayer.x < -5f) facingRight = false
+    }
+
+    private fun updateAttack(dt: Float, game: Game, toPlayer: Vector2, distToPlayer: Float) {
+        stateTimer += dt
+
+        // Execute attack at the start
+        if (stateTimer < dt + 0.001f) {
+            when (type) {
+                EnemyType.SKELETON -> skeletonAttack(game)
+                EnemyType.WRAITH -> wraithAttack(game)
+                EnemyType.FLAME_DANCER -> flameDancerAttack(game)
+                EnemyType.LAVA_CASTER -> lavaCasterAttack(game)
+                EnemyType.SHIELD_BEARER -> shieldBearerAttack(game)
+                EnemyType.SPEAR_THROWER -> spearThrowerAttack(game)
+                EnemyType.MEGA_SKELETON -> megaSkeletonAttack(game, distToPlayer)
+                EnemyType.INFERNO_TITAN -> infernoTitanAttack(game, distToPlayer)
+                EnemyType.CHAMPION -> championAttack(game, distToPlayer)
+            }
+        }
+
+        // Ground slam has its own timing
+        if (isGroundSlamming) {
+            updateGroundSlam(dt, game)
+            return
+        }
+
+        // Charge combo (Inferno Titan)
+        if (type == EnemyType.INFERNO_TITAN && chargeComboCount > 0 && stateTimer >= 0.6f) {
+            stateTimer = 0f
+            chargeComboCount--
+            val dir = (game.player.position - position).normalized
+            position.x += dir.x * speed * 5f * 0.15f
+            position.y += dir.y * speed * 5f * 0.15f
+            dealDamageIfClose(game, attackDamage)
+            if (chargeComboCount <= 0) {
+                attackCooldownTimer = attackCooldown
                 stateMachine.transitionTo(EnemyState.CHASE)
             }
             return
         }
 
-        val playerPos = game.player.position
-        facingRight = playerPos.x > position.x
+        // Attack duration
+        if (stateTimer >= 0.5f) {
+            attackCooldownTimer = attackCooldown
+            stateMachine.transitionTo(EnemyState.CHASE)
+        }
+    }
 
-        if (isRanged) {
-            // Ranged attack
-            val dir = (playerPos - position).normalized
-            val proj = Projectile(
+    private fun updateHurt(dt: Float, game: Game) {
+        stateTimer += dt
+        hurtTimer -= dt
+        if (stateTimer > 0.3f) {
+            stateMachine.transitionTo(EnemyState.CHASE)
+        }
+    }
+
+    // ========================
+    // Per-type attack methods
+    // ========================
+
+    private fun skeletonAttack(game: Game) {
+        val comboDmg = when (comboCount) {
+            0 -> attackDamage
+            1 -> (attackDamage * 1.5f).toInt()
+            else -> (attackDamage * 1.875f).toInt()
+        }
+        val range = if (comboCount >= 2) 50f else attackRange
+        dealDamageIfClose(game, comboDmg, range)
+        comboCount = (comboCount + 1) % 3
+        comboTimer = 3f
+    }
+
+    private fun wraithAttack(game: Game) {
+        val dir = (game.player.position - position).normalized
+        val baseAngle = atan2(dir.y, dir.x)
+        // Fire 3 magic bolts in spread pattern
+        for (i in -1..1) {
+            val angle = baseAngle + i * 0.2f
+            val projDir = Vector2(cos(angle), sin(angle))
+            game.projectiles.add(Projectile(
+                position = Vector2(position.x + projDir.x * 15f, position.y + projDir.y * 15f),
+                velocity = projDir * projectileSpeed,
+                damage = attackDamage.toFloat(),
+                type = projectileType,
+                maxRange = 400f,
+                isEnemyProjectile = true,
+                angle = projDir.angle
+            ))
+        }
+    }
+
+    private fun flameDancerAttack(game: Game) {
+        dealDamageIfClose(game, attackDamage)
+    }
+
+    private fun lavaCasterAttack(game: Game) {
+        val dir = (game.player.position - position).normalized
+        val baseAngle = atan2(dir.y, dir.x)
+        castCount++
+        if (castCount % 3 == 0) {
+            // Triple fireball fan
+            for (i in -1..1) {
+                val angle = baseAngle + i * 0.26f
+                val projDir = Vector2(cos(angle), sin(angle))
+                game.projectiles.add(Projectile(
+                    position = Vector2(position.x + projDir.x * 15f, position.y + projDir.y * 15f),
+                    velocity = projDir * projectileSpeed,
+                    damage = attackDamage.toFloat(),
+                    type = projectileType,
+                    maxRange = 400f,
+                    isEnemyProjectile = true,
+                    angle = projDir.angle
+                ))
+            }
+        } else {
+            // Single fireball
+            game.projectiles.add(Projectile(
                 position = Vector2(position.x + dir.x * 15f, position.y + dir.y * 15f),
                 velocity = dir * projectileSpeed,
                 damage = attackDamage.toFloat(),
@@ -307,89 +763,348 @@ class Enemy(
                 maxRange = 400f,
                 isEnemyProjectile = true,
                 angle = dir.angle
-            )
-            game.projectiles.add(proj)
-        } else {
-            // Melee attack
-            if (distToPlayer < attackRange + 10f) {
-                game.player.takeDamage(attackDamage, game)
-            }
-        }
-
-        // Boss: summon minions
-        if (canSummon && summonTimer <= 0) {
-            summonTimer = summonCooldown
-            for (i in 0..1) {
-                val offset = Vector2((Random.nextFloat() - 0.5f) * 60f, (Random.nextFloat() - 0.5f) * 60f)
-                val minion = Enemy(EnemyType.SKELETON, position + offset, layerIndex)
-                game.enemies.add(minion)
-            }
-        }
-
-        // Boss phase transition
-        if (isBoss && health.toFloat() / maxHealth < phaseThreshold && phase == 0) {
-            phase = 1
-            speed *= 1.3f
-            attackDamage = (attackDamage * 1.5f).toInt()
-            attackCooldown *= 0.7f
-        }
-
-        attackCooldownTimer = attackCooldown
-        stateMachine.transitionTo(EnemyState.CHASE)
-    }
-
-    private fun updateHurt(dt: Float, game: Game) {
-        stateTimer += dt
-        if (stateTimer > 0.3f) {
-            stateMachine.transitionTo(EnemyState.CHASE)
-        }
-    }
-
-    fun takeDamage(amount: Float, game: Game) {
-        if (isDead) return
-
-        // Shield check
-        if (hasShield && phase == 0) {
-            val playerDir = if (game.player.position.x > position.x) 1 else -1
-            if (playerDir == shieldDirection) {
-                // Blocked! Reduce damage by 80%
-                health -= (amount * 0.2f).toInt()
-            } else {
-                health -= amount.toInt()
-            }
-        } else {
-            health -= amount.toInt()
-        }
-
-        stateMachine.transitionTo(EnemyState.HURT)
-        stateTimer = 0f
-
-        // Hit particles
-        for (i in 0..3) {
-            game.particles.add(Particle(
-                position = Vector2(position.x, position.y),
-                velocity = Vector2((Random.nextFloat() - 0.5f) * 80f, (Random.nextFloat() - 0.5f) * 80f),
-                color = android.graphics.Color.WHITE,
-                life = 0.3f,
-                size = 2f
             ))
         }
+    }
 
-        if (health <= 0) {
-            health = 0
-            isDead = true
-            stateMachine.transitionTo(EnemyState.DEAD)
+    private fun shieldBearerAttack(game: Game) {
+        dealDamageIfClose(game, attackDamage)
+    }
 
-            // Death particles
-            for (i in 0..8) {
+    private fun spearThrowerAttack(game: Game) {
+        val dir = (game.player.position - position).normalized
+        fireSpear(game, dir)
+        // Multi-spear: fire a second spear after delay
+        multiSpearCount = 1
+        multiSpearTimer = 0.15f
+    }
+
+    private fun fireSpear(game: Game, dir: Vector2) {
+        game.projectiles.add(Projectile(
+            position = Vector2(position.x + dir.x * 15f, position.y + dir.y * 15f),
+            velocity = dir * projectileSpeed,
+            damage = attackDamage.toFloat(),
+            type = ProjectileType.SPEAR,
+            maxRange = 400f,
+            isEnemyProjectile = true,
+            angle = dir.angle
+        ))
+    }
+
+    private fun megaSkeletonAttack(game: Game, distToPlayer: Float) {
+        if (canGroundSlam && groundSlamTimer <= 0f && distToPlayer < 120f) {
+            startGroundSlam()
+            return
+        }
+        dealDamageIfClose(game, attackDamage)
+    }
+
+    private fun infernoTitanAttack(game: Game, distToPlayer: Float) {
+        // Melee + charge combo
+        if (distToPlayer < attackRange) {
+            dealDamageIfClose(game, attackDamage)
+            if (phase == 0 && chargeComboCount <= 0) {
+                chargeComboCount = chargeComboMax - 1
+            }
+        } else if (isRanged) {
+            // Fire fireball at range
+            val dir = (game.player.position - position).normalized
+            game.projectiles.add(Projectile(
+                position = Vector2(position.x + dir.x * 15f, position.y + dir.y * 15f),
+                velocity = dir * projectileSpeed,
+                damage = attackDamage.toFloat(),
+                type = projectileType,
+                maxRange = 400f,
+                isEnemyProjectile = true,
+                angle = dir.angle
+            ))
+        }
+    }
+
+    private fun championAttack(game: Game, distToPlayer: Float) {
+        if (phase == 1 && distToPlayer < 60f) {
+            // Melee combo in phase 2
+            meleeComboStep++
+            val comboDmg = (attackDamage * (1f + meleeComboStep * 0.2f)).toInt()
+            dealDamageIfClose(game, comboDmg, 55f)
+            if (meleeComboStep >= 3) {
+                meleeComboStep = 0
+            }
+            return
+        }
+        // Default: throw spear at range, melee close
+        if (distToPlayer > 60f && isRanged) {
+            val dir = (game.player.position - position).normalized
+            fireSpear(game, dir)
+        } else {
+            dealDamageIfClose(game, attackDamage)
+        }
+    }
+
+    // ========================
+    // Special ability methods
+    // ========================
+
+    private fun performPhaseShift(game: Game) {
+        // Teleport to random position 100-200f away from player
+        val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+        val dist = 100f + Random.nextFloat() * 100f
+        val targetX = game.player.position.x + cos(angle) * dist
+        val targetY = game.player.position.y + sin(angle) * dist
+        // Spawn vanish particles at old position
+        for (i in 0..5) {
+            val a = Random.nextFloat() * Math.PI.toFloat() * 2f
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2(cos(a) * 40f, sin(a) * 40f),
+                color = android.graphics.Color.parseColor("#8844CC"),
+                life = 0.4f,
+                size = 4f
+            ))
+        }
+        position.x = targetX
+        position.y = targetY
+        // Spawn appear particles at new position
+        for (i in 0..5) {
+            val a = Random.nextFloat() * Math.PI.toFloat() * 2f
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2(cos(a) * 40f, sin(a) * 40f),
+                color = android.graphics.Color.parseColor("#AA66EE"),
+                life = 0.4f,
+                size = 4f
+            ))
+        }
+        phaseShiftTimer = phaseShiftCooldown
+        // Immediately fire burst of bolts after teleport
+        val dir = (game.player.position - position).normalized
+        val baseAngle = atan2(dir.y, dir.x)
+        for (i in -1..1) {
+            val a = baseAngle + i * 0.2f
+            val projDir = Vector2(cos(a), sin(a))
+            game.projectiles.add(Projectile(
+                position = Vector2(position.x + projDir.x * 15f, position.y + projDir.y * 15f),
+                velocity = projDir * projectileSpeed,
+                damage = attackDamage.toFloat(),
+                type = projectileType,
+                maxRange = 400f,
+                isEnemyProjectile = true,
+                angle = projDir.angle
+            ))
+        }
+    }
+
+    private fun startFlameDash(toPlayer: Vector2) {
+        isFlameDashing = true
+        flameDashDuration = 0.25f
+        flameDashDir = toPlayer.normalized
+        flameDashTimer = flameDashCooldown
+    }
+
+    private fun updateFlameDash(dt: Float, game: Game) {
+        flameDashDuration -= dt
+        position.x += flameDashDir.x * 600f * dt
+        position.y += flameDashDir.y * 600f * dt
+        // Leave intense fire trail
+        game.particles.add(Particle(
+            position = Vector2(position.x + (Random.nextFloat() - 0.5f) * 8f, position.y + (Random.nextFloat() - 0.5f) * 8f),
+            velocity = Vector2((Random.nextFloat() - 0.5f) * 20f, -30f),
+            color = android.graphics.Color.parseColor("#FF6600"),
+            life = 1.5f,
+            size = 8f,
+            damage = 5f,
+            isFireTrail = true
+        ))
+        // Damage player if close during dash
+        val dist = position.distanceTo(game.player.position)
+        if (dist < 30f) {
+            game.player.takeDamage(8, game)
+        }
+        if (flameDashDuration <= 0f) {
+            isFlameDashing = false
+        }
+    }
+
+    private fun dropLavaPool(game: Game) {
+        for (i in 0..3) {
+            val offsetX = (Random.nextFloat() - 0.5f) * 12f
+            val offsetY = (Random.nextFloat() - 0.5f) * 12f
+            game.particles.add(Particle(
+                position = Vector2(position.x + offsetX, position.y + offsetY),
+                velocity = Vector2((Random.nextFloat() - 0.5f) * 10f, -15f),
+                color = android.graphics.Color.parseColor("#FF4400"),
+                life = 3f,
+                size = 10f,
+                damage = 2f,
+                isFireTrail = true
+            ))
+        }
+    }
+
+    private fun startShieldBash(toPlayer: Vector2) {
+        isShieldBashing = true
+        shieldBashDuration = 0.2f
+        shieldBashDir = toPlayer.normalized
+        shieldBashTimer = shieldBashCooldown
+    }
+
+    private fun updateShieldBash(dt: Float, game: Game) {
+        shieldBashDuration -= dt
+        position.x += shieldBashDir.x * 400f * dt
+        position.y += shieldBashDir.y * 400f * dt
+        // Damage + knockback on contact
+        val dist = position.distanceTo(game.player.position)
+        if (dist < 40f) {
+            game.player.takeDamage(15, game)
+            val knockDir = (game.player.position - position).normalized
+            game.player.position.x += knockDir.x * 50f
+            game.player.position.y += knockDir.y * 50f
+            isShieldBashing = false
+            shieldBashDuration = 0f
+        }
+        if (shieldBashDuration <= 0f) {
+            isShieldBashing = false
+        }
+    }
+
+    private fun startGroundSlam() {
+        isGroundSlamming = true
+        groundSlamPhase = 0 // Jump up
+        groundSlamHoverTimer = 0.5f
+        groundSlamTimer = groundSlamCooldown
+    }
+
+    private fun updateGroundSlam(dt: Float, game: Game) {
+        when (groundSlamPhase) {
+            0 -> {
+                // Jumping up (hover)
+                groundSlamHoverTimer -= dt
+                if (groundSlamHoverTimer <= 0f) {
+                    groundSlamPhase = 2 // Go to landing
+                }
+            }
+            2 -> {
+                // Landing - deal damage in radius
+                val slamRadius = if (phase >= 2) 100f else 80f
+                val slamDamage = 20
+                val dist = position.distanceTo(game.player.position)
+                if (dist < slamRadius) {
+                    game.player.takeDamage(slamDamage, game)
+                }
+                // Shockwave particles
+                for (i in 0..12) {
+                    val angle = i * Math.PI.toFloat() * 2f / 12f
+                    val spd = 120f
+                    game.particles.add(Particle(
+                        position = Vector2(position.x, position.y),
+                        velocity = Vector2(cos(angle) * spd, sin(angle) * spd),
+                        color = android.graphics.Color.parseColor("#AAAA44"),
+                        life = 0.5f,
+                        size = 6f
+                    ))
+                }
+                game.shake(8f, 0.15f)
+                isGroundSlamming = false
+                groundSlamPhase = 0
+                attackCooldownTimer = attackCooldown
+                stateMachine.transitionTo(EnemyState.CHASE)
+            }
+        }
+    }
+
+    private fun summonMinions(game: Game) {
+        for (i in 0 until summonCount) {
+            val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+            val dist = 60f + Random.nextFloat() * 40f
+            val spawnX = position.x + cos(angle) * dist
+            val spawnY = position.y + sin(angle) * dist
+            val minion = Enemy(EnemyType.SKELETON, Vector2(spawnX, spawnY), layerIndex)
+            game.enemies.add(minion)
+        }
+        // Summon particles
+        for (i in 0..8) {
+            val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2(cos(angle) * 60f, sin(angle) * 60f),
+                color = android.graphics.Color.parseColor("#44FF44"),
+                life = 0.4f,
+                size = 5f
+            ))
+        }
+    }
+
+    private fun startMeteorCast(game: Game) {
+        isCastingMeteor = true
+        meteorCastTimer = 1.2f // Telegraph duration
+        meteorTargetPos = Vector2(game.player.position.x, game.player.position.y)
+        meteorTimer = meteorCooldown
+    }
+
+    private fun updateMeteorCast(dt: Float, game: Game) {
+        meteorCastTimer -= dt
+        // Telegraph particle (pulsing circle on ground)
+        if (meteorCastTimer > 0f) {
+            game.particles.add(Particle(
+                position = Vector2(meteorTargetPos.x, meteorTargetPos.y),
+                velocity = Vector2.ZERO,
+                color = android.graphics.Color.parseColor("#FF6600"),
+                life = 0.1f,
+                size = 25f + (1.2f - meteorCastTimer) * 10f
+            ))
+        }
+        if (meteorCastTimer <= 0f) {
+            // Impact!
+            val dist = game.player.position.distanceTo(meteorTargetPos)
+            if (dist < 60f) {
+                game.player.takeDamage(25, game)
+            }
+            // Explosion particles
+            for (i in 0..15) {
+                val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+                val spd = 80f + Random.nextFloat() * 60f
                 game.particles.add(Particle(
-                    position = Vector2(position.x, position.y),
-                    velocity = Vector2((Random.nextFloat() - 0.5f) * 120f, (Random.nextFloat() - 0.5f) * 120f),
-                    color = android.graphics.Color.parseColor("#FF6644"),
+                    position = Vector2(meteorTargetPos.x, meteorTargetPos.y),
+                    velocity = Vector2(cos(angle) * spd, sin(angle) * spd),
+                    color = android.graphics.Color.parseColor("#FF4400"),
                     life = 0.6f,
-                    size = 4f
+                    size = 7f,
+                    damage = 3f,
+                    isFireTrail = true
                 ))
             }
+            game.shake(10f, 0.2f)
+            isCastingMeteor = false
+        }
+    }
+
+    // Champion: dodge roll
+    private fun startDodgeRoll(toPlayer: Vector2) {
+        isDodging = true
+        dodgeRollDuration = 0.3f
+        // Roll perpendicular to player direction
+        val perpAngle = atan2(toPlayer.y, toPlayer.x) + (if (Random.nextBoolean()) Math.PI.toFloat() / 2f else -Math.PI.toFloat() / 2f)
+        dodgeRollDir = Vector2(cos(perpAngle), sin(perpAngle))
+        dodgeRollTimer = dodgeRollCooldown
+    }
+
+    private fun updateDodgeRoll(dt: Float) {
+        dodgeRollDuration -= dt
+        position.x += dodgeRollDir.x * speed * 2f * dt
+        position.y += dodgeRollDir.y * speed * 2f * dt
+        if (dodgeRollDuration <= 0f) {
+            isDodging = false
+        }
+    }
+
+    // ========================
+    // Utility methods
+    // ========================
+
+    private fun dealDamageIfClose(game: Game, damage: Int, range: Float = attackRange.toFloat()) {
+        val dist = position.distanceTo(game.player.position)
+        if (dist < range) {
+            game.player.takeDamage(damage, game)
         }
     }
 

@@ -547,6 +547,9 @@ class IsometricRenderer {
     fun renderEnemy(canvas: Canvas, enemy: Enemy) {
         val (sx, sy) = worldToScreen(enemy.position)
 
+        // Attack telegraph effects (drawn before body, in world space)
+        drawAttackTelegraphs(canvas, enemy, sx, sy)
+
         canvas.save()
         if (!enemy.facingRight) {
             canvas.scale(-1f, 1f, sx, sy)
@@ -565,6 +568,9 @@ class IsometricRenderer {
         // Hurt flash
         val hurtFlash = isHurt && enemy.stateTimer % 0.1f < 0.05f
 
+        // Phase transition flash
+        val phaseFlash = enemy.isPhaseTransitioning
+
         // Enemy body - drawn by type
         when (enemy.type) {
             EnemyType.SKELETON -> drawSkeleton(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
@@ -573,9 +579,45 @@ class IsometricRenderer {
             EnemyType.FLAME_DANCER -> drawFlameDancer(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
             EnemyType.LAVA_CASTER -> drawLavaCaster(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
             EnemyType.INFERNO_TITAN -> drawInfernoTitan(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.SHIELD_BEARER -> drawShieldBearer(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy.shieldDirection)
+            EnemyType.SHIELD_BEARER -> drawShieldBearer(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy.shieldDirection, enemy.shieldThrown)
             EnemyType.SPEAR_THROWER -> drawSpearThrower(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.CHAMPION -> drawChampion(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
+            EnemyType.CHAMPION -> drawChampion(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy.shieldThrown)
+        }
+
+        // Phase transition white flash overlay
+        if (phaseFlash) {
+            paint.color = Color.argb(200, 255, 255, 255)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - enemy.height / 2f, enemy.width * 2f, paint)
+        }
+
+        // PREPARE_ATTACK wind-up glow
+        if (enemy.stateMachine.currentState == EnemyState.PREPARE_ATTACK) {
+            val glowPulse = sin(globalTime * 10f) * 0.3f + 0.7f
+            paint.color = Color.argb((60 * glowPulse).toInt(), 255, 50, 50)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - enemy.height / 2f, enemy.width * 1.5f, paint)
+        }
+
+        // Flame dash glow
+        if (enemy.isFlameDashing) {
+            paint.color = Color.argb(80, 255, 100, 0)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - enemy.height / 2f, enemy.width * 2f, paint)
+        }
+
+        // Shield bash glow
+        if (enemy.isShieldBashing) {
+            paint.color = Color.argb(80, 100, 150, 255)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - enemy.height / 2f, enemy.width * 2f, paint)
+        }
+
+        // Dodge roll afterimage
+        if (enemy.isDodging) {
+            paint.color = Color.argb(60, 200, 200, 255)
+            paint.style = Paint.Style.FILL
+            canvas.drawOval(sx - 16f, sy - 30f, sx + 16f, sy + 6f, paint)
         }
 
         canvas.restore()
@@ -605,7 +647,44 @@ class IsometricRenderer {
         }
     }
 
-    private fun drawSkeleton(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean) {
+    private fun drawAttackTelegraphs(canvas: Canvas, enemy: Enemy, sx: Float, sy: Float) {
+        // Ground slam telegraph: red expanding circle under Mega Skeleton
+        if (enemy.isGroundSlamming && enemy.groundSlamPhase == 0) {
+            val slamRadius = if (enemy.phase >= 2) 100f else 80f
+            val progress = 1f - enemy.groundSlamHoverTimer / 0.5f
+            val radius = slamRadius * progress
+            paint.color = Color.argb(60, 255, 50, 50)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy, radius, paint)
+            paint.color = Color.argb(120, 255, 100, 100)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            canvas.drawCircle(sx, sy, radius, paint)
+            paint.strokeWidth = 1f
+            paint.style = Paint.Style.FILL
+        }
+
+        // Meteor telegraph: orange pulsing circle at target position
+        if (enemy.isCastingMeteor) {
+            val (mx, my) = worldToScreen(enemy.meteorTargetPos)
+            val progress = 1f - enemy.meteorCastTimer / 1.2f
+            val radius = 30f + progress * 30f
+            val pulse = sin(globalTime * 6f) * 5f
+            paint.color = Color.argb(80, 255, 100, 0)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(mx, my, radius + pulse, paint)
+            paint.color = Color.argb(160, 255, 150, 0)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 3f
+            canvas.drawCircle(mx, my, radius, paint)
+            // Inner warning ring
+            paint.color = Color.argb(200, 255, 200, 50)
+            paint.strokeWidth = 2f
+            canvas.drawCircle(mx, my, 20f, paint)
+            paint.strokeWidth = 1f
+            paint.style = Paint.Style.FILL
+        }
+    }
         paint.style = Paint.Style.FILL
         val flash: Int? = if (hurtFlash) Color.WHITE else null
 
@@ -993,7 +1072,7 @@ class IsometricRenderer {
         }
     }
 
-    private fun drawShieldBearer(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean, shieldDir: Int) {
+    private fun drawShieldBearer(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean, shieldDir: Int, shieldThrown: Boolean = false) {
         paint.style = Paint.Style.FILL
         val flash: Int? = if (hurtFlash) Color.WHITE else null
 
@@ -1038,21 +1117,23 @@ class IsometricRenderer {
         canvas.drawCircle(sx + 3f, sy - 39f + bob, 1.5f, paint)
 
         // Shield
-        paint.color = Color.parseColor("#5599DD")
-        canvas.drawOval(sx + 8f, sy - 30f + bob, sx + 24f, sy - 8f + bob, paint)
-        // Shield inner
-        paint.color = Color.parseColor("#77BBFF")
-        canvas.drawOval(sx + 11f, sy - 27f + bob, sx + 21f, sy - 11f + bob, paint)
-        // Shield boss (center)
-        paint.color = Color.parseColor("#FFD700")
-        canvas.drawCircle(sx + 16f, sy - 19f + bob, 3f, paint)
-        // Shield rim
-        paint.color = Color.parseColor("#3377BB")
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f
-        canvas.drawOval(sx + 8f, sy - 30f + bob, sx + 24f, sy - 8f + bob, paint)
-        paint.strokeWidth = 1f
-        paint.style = Paint.Style.FILL
+        if (!shieldThrown) {
+            paint.color = Color.parseColor("#5599DD")
+            canvas.drawOval(sx + 8f, sy - 30f + bob, sx + 24f, sy - 8f + bob, paint)
+            // Shield inner
+            paint.color = Color.parseColor("#77BBFF")
+            canvas.drawOval(sx + 11f, sy - 27f + bob, sx + 21f, sy - 11f + bob, paint)
+            // Shield boss (center)
+            paint.color = Color.parseColor("#FFD700")
+            canvas.drawCircle(sx + 16f, sy - 19f + bob, 3f, paint)
+            // Shield rim
+            paint.color = Color.parseColor("#3377BB")
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            canvas.drawOval(sx + 8f, sy - 30f + bob, sx + 24f, sy - 8f + bob, paint)
+            paint.strokeWidth = 1f
+            paint.style = Paint.Style.FILL
+        }
     }
 
     private fun drawSpearThrower(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean) {
@@ -1114,7 +1195,7 @@ class IsometricRenderer {
         canvas.drawRect(sx + 28f, sy - 54f + bob, sx + 32f, sy - 52f + bob, paint)
     }
 
-    private fun drawChampion(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean) {
+    private fun drawChampion(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean, shieldThrown: Boolean = false) {
         paint.style = Paint.Style.FILL
         val flash: Int? = if (hurtFlash) Color.WHITE else null
 
@@ -1173,33 +1254,62 @@ class IsometricRenderer {
         canvas.drawRect(sx - 6f, sy - 63f + bob, sx - 2f, sy - 61f + bob, paint)
         canvas.drawRect(sx + 2f, sy - 63f + bob, sx + 6f, sy - 61f + bob, paint)
 
-        // Shield
-        paint.color = Color.parseColor("#DDAA22")
-        canvas.drawOval(sx + 14f, sy - 42f + bob, sx + 34f, sy - 12f + bob, paint)
-        // Shield inner
-        paint.color = Color.parseColor("#FFCC44")
-        canvas.drawOval(sx + 18f, sy - 38f + bob, sx + 30f, sy - 16f + bob, paint)
-        // Shield emblem
-        paint.color = Color.parseColor("#FFD700")
-        canvas.drawCircle(sx + 24f, sy - 27f + bob, 4f, paint)
-        // Shield rim
-        paint.color = Color.parseColor("#BB8811")
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f
-        canvas.drawOval(sx + 14f, sy - 42f + bob, sx + 34f, sy - 12f + bob, paint)
-        paint.strokeWidth = 1f
-        paint.style = Paint.Style.FILL
+        // Shield & weapons
+        if (!shieldThrown) {
+            // Shield (phase 1)
+            paint.color = Color.parseColor("#DDAA22")
+            canvas.drawOval(sx + 14f, sy - 42f + bob, sx + 34f, sy - 12f + bob, paint)
+            paint.color = Color.parseColor("#FFCC44")
+            canvas.drawOval(sx + 18f, sy - 38f + bob, sx + 30f, sy - 16f + bob, paint)
+            paint.color = Color.parseColor("#FFD700")
+            canvas.drawCircle(sx + 24f, sy - 27f + bob, 4f, paint)
+            paint.color = Color.parseColor("#BB8811")
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f
+            canvas.drawOval(sx + 14f, sy - 42f + bob, sx + 34f, sy - 12f + bob, paint)
+            paint.strokeWidth = 1f
+            paint.style = Paint.Style.FILL
 
-        // Spear
-        paint.color = Color.parseColor("#886644")
-        paint.strokeWidth = 3f
-        canvas.drawLine(sx - 18f, sy - 52f + bob, sx - 38f, sy - 72f + bob, paint)
-        paint.strokeWidth = 1f
-        // Spear tip
-        paint.color = Color.parseColor("#CCCCCC")
-        paint.strokeWidth = 2f
-        canvas.drawLine(sx - 36f, sy - 70f + bob, sx - 44f, sy - 78f + bob, paint)
-        paint.strokeWidth = 1f
+            // Spear (phase 1)
+            paint.color = Color.parseColor("#886644")
+            paint.strokeWidth = 3f
+            canvas.drawLine(sx - 18f, sy - 52f + bob, sx - 38f, sy - 72f + bob, paint)
+            paint.strokeWidth = 1f
+            paint.color = Color.parseColor("#CCCCCC")
+            paint.strokeWidth = 2f
+            canvas.drawLine(sx - 36f, sy - 70f + bob, sx - 44f, sy - 78f + bob, paint)
+            paint.strokeWidth = 1f
+        } else {
+            // Dual swords (phase 2 - shield thrown away)
+            // Right sword
+            paint.color = Color.parseColor("#CCCCCC")
+            paint.strokeWidth = 3f
+            canvas.drawLine(sx + 16f, sy - 40f + bob, sx + 30f, sy - 12f + bob, paint)
+            paint.color = Color.parseColor("#FFFFFF")
+            paint.strokeWidth = 1f
+            canvas.drawLine(sx + 17f, sy - 38f + bob, sx + 29f, sy - 14f + bob, paint)
+            // Right handle
+            paint.color = Color.parseColor("#886633")
+            paint.style = Paint.Style.FILL
+            canvas.drawRect(sx + 14f, sy - 42f + bob, sx + 18f, sy - 38f + bob, paint)
+
+            // Left sword
+            paint.color = Color.parseColor("#CCCCCC")
+            paint.strokeWidth = 3f
+            canvas.drawLine(sx - 16f, sy - 40f + bob, sx - 30f, sy - 12f + bob, paint)
+            paint.color = Color.parseColor("#FFFFFF")
+            paint.strokeWidth = 1f
+            canvas.drawLine(sx - 17f, sy - 38f + bob, sx - 29f, sy - 14f + bob, paint)
+            // Left handle
+            paint.color = Color.parseColor("#886633")
+            paint.style = Paint.Style.FILL
+            canvas.drawRect(sx - 18f, sy - 42f + bob, sx - 14f, sy - 38f + bob, paint)
+
+            // Red eye glow (enraged)
+            paint.color = Color.argb(80, 255, 50, 50)
+            paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - 58f + bob, 16f, paint)
+        }
     }
 
     fun renderProjectile(canvas: Canvas, proj: Projectile) {
