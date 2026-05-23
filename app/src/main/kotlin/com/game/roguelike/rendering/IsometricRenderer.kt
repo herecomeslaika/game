@@ -685,6 +685,8 @@ class IsometricRenderer {
             paint.style = Paint.Style.FILL
         }
     }
+
+    private fun drawSkeleton(canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean) {
         paint.style = Paint.Style.FILL
         val flash: Int? = if (hurtFlash) Color.WHITE else null
 
@@ -1406,6 +1408,20 @@ class IsometricRenderer {
                 }
                 paint.strokeWidth = 1f
                 paint.style = Paint.Style.FILL
+            }
+            ProjectileType.METEOR -> {
+                // Outer glow
+                paint.color = Color.argb(50, 255, 68, 0)
+                canvas.drawCircle(sx, sy, 14f, paint)
+                // Core
+                paint.color = Color.parseColor("#FF4400")
+                canvas.drawCircle(sx, sy, 10f, paint)
+                // Inner
+                paint.color = Color.parseColor("#FFAA00")
+                canvas.drawCircle(sx, sy, 5f, paint)
+                // Center
+                paint.color = Color.parseColor("#FFFF44")
+                canvas.drawCircle(sx, sy, 2f, paint)
             }
         }
     }
