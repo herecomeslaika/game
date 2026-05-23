@@ -9,6 +9,7 @@ import com.game.roguelike.rendering.IsometricRenderer
 import com.game.roguelike.util.StateMachine
 import com.game.roguelike.util.Vector2
 import kotlin.random.Random
+import kotlin.math.abs
 
 enum class EnemyType {
     SKELETON, WRAITH, MEGA_SKELETON,
@@ -70,7 +71,11 @@ class Enemy(
 
     val stateMachine = StateMachine(EnemyState.IDLE)
     private var patrolTarget = Vector2.ZERO
-    private var stateTimer = 0f
+    var stateTimer = 0f
+    // Animation state
+    private var moveAnimTime = 0f
+    var moveAnimPhase = 0f
+    var idleTime = 0f
 
     init {
         position = Vector2(spawnPos.x, spawnPos.y)
@@ -165,6 +170,21 @@ class Enemy(
             EnemyState.DEAD -> {}
         }
 
+        // Update animation
+        when (stateMachine.currentState) {
+            EnemyState.CHASE, EnemyState.PATROL -> {
+                moveAnimTime += dt * 8f
+                moveAnimPhase = moveAnimTime % 1f
+                idleTime = 0f
+            }
+            EnemyState.IDLE -> {
+                moveAnimTime = 0f
+                moveAnimPhase = 0f
+                idleTime += dt
+            }
+            else -> idleTime = 0f
+        }
+
         // Update shield direction
         if (hasShield) {
             shieldDirection = if (game.player.position.x > position.x) 1 else -1
@@ -199,7 +219,8 @@ class Enemy(
             val norm = dir.normalized
             position.x += norm.x * speed * 0.3f * dt
             position.y += norm.y * speed * 0.3f * dt
-            facingRight = norm.x > 0
+            // Only flip facing on significant horizontal movement to avoid spinning
+            if (abs(norm.x) > 0.3f) facingRight = norm.x > 0
         } else {
             stateMachine.transitionTo(EnemyState.IDLE)
         }
@@ -220,7 +241,7 @@ class Enemy(
         val dir = (playerPos - position).normalized
         position.x += dir.x * speed * dt
         position.y += dir.y * speed * dt
-        facingRight = dir.x > 0
+        if (abs(dir.x) > 0.15f) facingRight = dir.x > 0
 
         // Fire trail
         if (leavesFireTrail && fireTrailTimer <= 0) {

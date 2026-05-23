@@ -82,7 +82,7 @@ class Game(private val context: Context) {
         screenHeight = height
         renderer.updateScreenSize(width, height)
         virtualJoystick.updateLayout(width, height)
-        actionButtons.updateLayout(width, height, inputManager!!)
+        inputManager?.let { actionButtons.updateLayout(width, height, it) }
         hud.updateLayout(width, height)
         blessingSelectUI.updateLayout(width, height)
         shopUI.updateLayout(width, height)
@@ -161,14 +161,19 @@ class Game(private val context: Context) {
         // Player update
         player.update(dt, this)
 
-        // Enemy updates
-        val iter = enemies.iterator()
-        while (iter.hasNext()) {
-            val enemy = iter.next()
+        // Enemy updates - copy list to avoid ConcurrentModificationException
+        // (enemy update can add new enemies via summoning)
+        val enemiesToUpdate = enemies.toList()
+        for (enemy in enemiesToUpdate) {
             enemy.update(dt, this)
+        }
+        // Remove dead enemies after all updates
+        val enemyIter = enemies.iterator()
+        while (enemyIter.hasNext()) {
+            val enemy = enemyIter.next()
             if (enemy.isDead && enemy.deathAnimationDone) {
                 gold += enemy.goldDrop
-                iter.remove()
+                enemyIter.remove()
             }
         }
 
@@ -198,7 +203,19 @@ class Game(private val context: Context) {
                 // Boss room grants blessing selection
                 if (room.type == RoomType.BOSS) {
                     gameState = GameState.BLESSING_SELECT
-                    blessingSelector.generateOffering(currentLayerIndex)
+                    blessingSelector.generateOffering(currentLayerIndex, blessings)
+                }
+            }
+        }
+
+        // Fire trail particles damage player
+        // Use index-based iteration to avoid ConcurrentModificationException
+        // (takeDamage adds particles to the same list)
+        for (i in particles.indices) {
+            val particle = particles[i]
+            if (particle.damage > 0 && particle.isFireTrail && !player.isDashInvincible) {
+                if (player.position.distanceTo(particle.position) < 25f) {
+                    player.takeDamage(particle.damage.toInt(), this)
                 }
             }
         }
@@ -226,22 +243,22 @@ class Game(private val context: Context) {
     }
 
     private fun updateTransition(dt: Float) {
-        transitionAlpha += dt * 2f
-        if (transitionAlpha >= 1f && transitionTarget == null) {
-            transitionAlpha = 1f
-            // Load next layer
-            currentLayerIndex++
-            if (currentLayerIndex >= 3) {
-                gameState = GameState.VICTORY
-                return
+        if (transitionTarget == null) {
+            transitionAlpha += dt * 2f
+            if (transitionAlpha >= 1f) {
+                transitionAlpha = 1f
+                currentLayerIndex++
+                if (currentLayerIndex >= 3) {
+                    gameState = GameState.VICTORY
+                    return
+                }
+                currentLayer = Layer.create(currentLayerIndex)
+                currentRoomIndex = 0
+                currentRoom = currentLayer!!.rooms[0]
+                loadRoom(currentRoom!!)
+                transitionTarget = GameState.PLAYING
             }
-            currentLayer = Layer.create(currentLayerIndex)
-            currentRoomIndex = 0
-            currentRoom = currentLayer!!.rooms[0]
-            loadRoom(currentRoom!!)
-            transitionTarget = GameState.PLAYING
-        }
-        if (transitionTarget == GameState.PLAYING && transitionAlpha >= 1f) {
+        } else if (transitionTarget == GameState.PLAYING) {
             transitionAlpha -= dt * 2f
             if (transitionAlpha <= 0f) {
                 transitionAlpha = 0f
@@ -295,7 +312,7 @@ class Game(private val context: Context) {
             }
             RoomType.REWARD -> {
                 gameState = GameState.BLESSING_SELECT
-                blessingSelector.generateOffering(currentLayerIndex)
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
             RoomType.SHOP -> {
                 merchant = Merchant(room.merchantPosition)
@@ -393,7 +410,7 @@ class Game(private val context: Context) {
         }
 
         // Render room
-        renderer.renderRoom(canvas, room, player.position)
+        renderer.renderRoom(canvas, room, player.position, TICK)
 
         // Depth-sort entities
         val entities = mutableListOf<Entity>()
@@ -449,9 +466,13 @@ class Game(private val context: Context) {
                 startNewRun()
             }
             GameState.BLESSING_SELECT -> {
-                val selected = blessingSelectUI.handleTouch(x, y, blessingSelector.currentOffering)
-                if (selected != null) {
-                    selectBlessing(selected)
+                if (blessingSelector.currentOffering.isEmpty()) {
+                    gameState = GameState.PLAYING
+                } else {
+                    val selected = blessingSelectUI.handleTouch(x, y, blessingSelector.currentOffering)
+                    if (selected != null) {
+                        selectBlessing(selected)
+                    }
                 }
             }
             GameState.SHOP -> {

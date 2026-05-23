@@ -8,6 +8,8 @@ import com.game.roguelike.util.StateMachine
 import com.game.roguelike.util.Vector2
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.combat.ProjectileType
+import com.game.roguelike.level.Room
+import kotlin.math.abs
 
 class Player : Entity() {
 
@@ -30,7 +32,7 @@ class Player : Entity() {
 
     // Special attack stats
     var specialDamage = 12f
-    var specialCooldown = 1.5f
+    var specialCooldown = 0.8f
     var specialCooldownTimer = 0f
     var knifeCount = 1
     var knifePierce = false
@@ -81,6 +83,7 @@ class Player : Entity() {
     // Movement animation
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
+    var idleTime = 0f
 
     val stateMachine = StateMachine(PlayerState.IDLE)
 
@@ -98,7 +101,7 @@ class Player : Entity() {
         attackSpeedMultiplier = 1f
         comboSplashRadius = 0f
         specialDamage = 12f
-        specialCooldown = 1.5f
+        specialCooldown = 0.8f
         knifeCount = 1
         knifePierce = false
         knifeExplosive = false
@@ -169,11 +172,12 @@ class Player : Entity() {
     private fun updateIdle(dt: Float, game: Game) {
         val input = game.inputManager ?: return
         velocity = Vector2.ZERO
+        // Reset walk animation so idle pose is stable
+        moveAnimTime = 0f
+        moveAnimPhase = 0f
+        idleTime += dt
         if (input.joystickDirection.magnitude > 0.1f) {
-            // Set facing from raw joystick direction before transitioning
-            val rawX = input.joystickDirection.x
-            if (rawX > 0.15f) facingRight = true
-            else if (rawX < -0.15f) facingRight = false
+            idleTime = 0f
             stateMachine.transitionTo(PlayerState.RUN)
         }
     }
@@ -192,21 +196,23 @@ class Player : Entity() {
             velocity.x += (worldDir.x * speed - velocity.x) * 12f * dt
             velocity.y += (worldDir.y * speed - velocity.y) * 12f * dt
 
-            // Only change facing from joystick input, with a meaningful threshold
-            if (moveDir.x > 0.15f) facingRight = true
-            else if (moveDir.x < -0.15f) facingRight = false
-
             position.x += velocity.x * dt
             position.y += velocity.y * dt
+
+            // Only update facing when there's active joystick input
+            if (worldDir.x > 0.15f) facingRight = true
+            else if (worldDir.x < -0.15f) facingRight = false
 
             moveAnimTime += dt * 8f
             moveAnimPhase = moveAnimTime % 1f
         } else {
-            // Decelerate smoothly, don't change facing during deceleration
+            // Decelerate smoothly, lock facing during deceleration
             velocity.x += (0f - velocity.x) * 10f * dt
             velocity.y += (0f - velocity.y) * 10f * dt
             if (velocity.magnitude < 5f) {
                 velocity = Vector2.ZERO
+                moveAnimTime = 0f
+                moveAnimPhase = 0f
                 stateMachine.transitionTo(PlayerState.IDLE)
             } else {
                 // Still moving from deceleration, apply position change
@@ -218,7 +224,7 @@ class Player : Entity() {
 
     internal fun startAttack1(game: Game) {
         comboStep = 1
-        attackTimer = 0.2f / attackSpeedMultiplier
+        attackTimer = 0.15f / attackSpeedMultiplier
         isAttacking1 = true
         isAttacking2 = false
         isAttacking3 = false
@@ -243,7 +249,7 @@ class Player : Entity() {
 
     internal fun startAttack2(game: Game) {
         comboStep = 2
-        attackTimer = 0.2f / attackSpeedMultiplier
+        attackTimer = 0.15f / attackSpeedMultiplier
         isAttacking1 = false
         isAttacking2 = true
         isAttacking3 = false
@@ -266,7 +272,7 @@ class Player : Entity() {
 
     internal fun startAttack3(game: Game) {
         comboStep = 3
-        attackTimer = 0.3f / attackSpeedMultiplier
+        attackTimer = 0.2f / attackSpeedMultiplier
         isAttacking1 = false
         isAttacking2 = false
         isAttacking3 = true
@@ -321,29 +327,36 @@ class Player : Entity() {
         specialCooldownTimer = specialCooldown
         stateMachine.transitionTo(PlayerState.SPECIAL)
 
-        val direction = Vector2.fromAngle(if (facingRight) 0f else 3.14159f)
+        // Auto-lock: find nearest enemy, otherwise use facing direction
+        val nearest = findNearestEnemy(game)
+        val baseDirection = if (nearest != null) {
+            (nearest.position - position).normalized
+        } else {
+            Vector2.fromAngle(if (facingRight) 0f else 3.14159f)
+        }
 
         val spreadAngle = 0.2f
         for (i in 0 until knifeCount) {
             val offsetAngle = if (knifeCount == 1) 0f
                 else (i - (knifeCount - 1) / 2f) * spreadAngle
-            val knifeDir = Vector2.fromAngle(direction.angle + offsetAngle)
+            val knifeDir = Vector2.fromAngle(baseDirection.angle + offsetAngle)
             val knife = Projectile(
                 position = Vector2(position.x + knifeDir.x * 15f, position.y + knifeDir.y * 15f),
-                velocity = knifeDir * 400f,
+                velocity = knifeDir * 500f,
                 damage = specialDamage + warCryDamageBonus,
                 type = ProjectileType.KNIFE,
                 maxRange = 500f,
                 pierce = knifePierce,
                 explosive = knifeExplosive,
-                angle = knifeDir.angle
+                angle = knifeDir.angle,
+                target = nearest
             )
             game.projectiles.add(knife)
         }
     }
 
     private fun updateSpecial(dt: Float, game: Game) {
-        if (stateMachine.stateTime > 0.2f) {
+        if (stateMachine.stateTime > 0.1f) {
             stateMachine.transitionTo(PlayerState.IDLE)
         }
     }
@@ -481,13 +494,63 @@ class Player : Entity() {
         }
     }
 
-    private fun clampToRoom(room: com.game.roguelike.level.Room?) {
+    private fun clampToRoom(room: Room?) {
         if (room == null) return
-        val margin = 40f
-        val worldW = room.width * 64f
-        val worldH = room.height * 32f
-        position.x = position.x.coerceIn(margin, worldW - margin)
-        position.y = position.y.coerceIn(margin, worldH - margin)
+        val tw = 64f
+        val th = 32f
+        val worldW = room.width * tw
+        val worldH = room.height * th
+
+        // Walls in isometric view extend outward from their grid position.
+        // Left/bottom walls have visible faces that extend into the room,
+        // so we need larger margins on the left and bottom edges.
+        val leftMargin = tw      // left wall extends one tile width into room
+        val topMargin = th       // top wall extends one tile height into room
+        val rightMargin = tw     // right wall extends one tile width into room
+        val bottomMargin = th    // bottom wall extends one tile height into room
+
+        // Also check obstacle tiles and push player away from them
+        val gridX = (position.x / tw).toInt().coerceIn(0, room.width - 1)
+        val gridY = (position.y / th).toInt().coerceIn(0, room.height - 1)
+
+        for (dx in -1..1) {
+            for (dy in -1..1) {
+                val tx = gridX + dx
+                val ty = gridY + dy
+                if (tx < 0 || tx >= room.width || ty < 0 || ty >= room.height) continue
+                val tile = room.getTile(tx, ty)
+                if (tile == Room.TILE_OBSTACLE) {
+                    val tileMinX = tx * tw
+                    val tileMinY = ty * th
+                    val tileMaxX = tileMinX + tw
+                    val tileMaxY = tileMinY + th
+                    val pushMargin = 20f
+
+                    if (position.x > tileMinX - pushMargin && position.x < tileMaxX + pushMargin &&
+                        position.y > tileMinY - pushMargin && position.y < tileMaxY + pushMargin
+                    ) {
+                        // Push out from obstacle center
+                        val cx = tileMinX + tw / 2f
+                        val cy = tileMinY + th / 2f
+                        val dx2 = position.x - cx
+                        val dy2 = position.y - cy
+                        val oX = (tw / 2f + pushMargin) - abs(dx2)
+                        val oY = (th / 2f + pushMargin) - abs(dy2)
+                        if (oX > 0 && oY > 0) {
+                            if (oX < oY) {
+                                position.x += if (dx2 >= 0) oX else -oX
+                            } else {
+                                position.y += if (dy2 >= 0) oY else -oY
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Final boundary clamp with isometric wall margins
+        position.x = position.x.coerceIn(leftMargin, worldW - rightMargin)
+        position.y = position.y.coerceIn(topMargin, worldH - bottomMargin)
     }
 
     override fun render(canvas: Canvas, renderer: IsometricRenderer) {

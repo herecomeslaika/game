@@ -7,8 +7,10 @@ class BlessingSelector {
     var currentOffering: List<Blessing> = listOf()
         private set
 
-    fun generateOffering(layerIndex: Int) {
-        val pool = BlessingData.getForLayer(layerIndex)
+    fun generateOffering(layerIndex: Int, ownedBlessings: List<Blessing> = emptyList()) {
+        val pool = BlessingData.getForLayer(layerIndex).filter { blessing ->
+            ownedBlessings.none { it.name == blessing.name }
+        }
         val shuffled = pool.shuffled(Random)
         currentOffering = shuffled.take(3)
     }

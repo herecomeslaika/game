@@ -24,7 +24,8 @@ class Projectile(
     val pierce: Boolean = false,
     val explosive: Boolean = false,
     val isEnemyProjectile: Boolean = false,
-    val angle: Float = 0f
+    val angle: Float = 0f,
+    val target: Enemy? = null
 ) {
     var position = Vector2(position.x, position.y)
     var velocity = Vector2(velocity.x, velocity.y)
@@ -33,6 +34,19 @@ class Projectile(
     private val hitEnemies = mutableSetOf<Enemy>()
 
     fun update(dt: Float, game: Game) {
+        // Homing: gently steer toward locked target
+        if (target != null && !target.isDead) {
+            val toTarget = (target.position - position).normalized
+            val currentDir = velocity.normalized
+            val blended = Vector2(
+                currentDir.x + toTarget.x * 4f * dt,
+                currentDir.y + toTarget.y * 4f * dt
+            ).normalized
+            val speed = velocity.magnitude
+            velocity.x = blended.x * speed
+            velocity.y = blended.y * speed
+        }
+
         val dx = velocity.x * dt
         val dy = velocity.y * dt
         position.x += dx
@@ -55,9 +69,10 @@ class Projectile(
                     if (explosive) {
                         // AOE damage
                         for (other in game.enemies) {
-                            if (other.isDead || other === enemy) continue
+                            if (other.isDead || other === enemy || hitEnemies.contains(other)) continue
                             if (other.position.distanceTo(position) < 60f) {
                                 other.takeDamage(damage * 0.6f, game)
+                                hitEnemies.add(other)
                             }
                         }
                         // Explosion particles
