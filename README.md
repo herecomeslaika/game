@@ -149,6 +149,34 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 | `Invalid maximum heap size: -Xmx4096m` | 使用了 32位 JDK（Client VM） | 设置 JAVA_HOME 为 64位 JDK 17+ |
 | `No matching variant...compatible with Java 8` | AGP 8.2 不兼容 Java 8 | 设置 JAVA_HOME 为 JDK 11+ |
 | 构建卡死/OOM | 默认 heap 设置过大 | 修改 `gradle.properties` 中 `-Xmx` 值（32位 JDK 改为 `-Xmx1024m`） |
+| Run 按钮灰色 | Gradle Sync 未完成 | 见下方详解 |
+
+### Run 按钮灰色无法运行（Android Studio）
+
+Run 按钮灰色通常意味着 Android Studio 没有识别到可运行的 Android 应用模块。按以下步骤排查：
+
+**1. 完成 Gradle Sync**
+- 打开项目后，右下角会显示 "Gradle Build Running..."，等待其完成
+- 如果没有自动触发：菜单 `File → Sync Project with Gradle Files`（或工具栏 🐘 图标）
+- Sync 成功后 Run 按钮应该变为可用
+
+**2. 检查 Gradle JDK 设置**
+- `File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK`
+- 必须选择 **JDK 17+**（推荐 JetBrains Runtime 17 或 21）
+- 如果下拉列表中没有 JDK 17+，点击 "Download JDK..." 下载
+
+**3. 检查 Android SDK 配置**
+- `File → Settings → Languages & Frameworks → Android SDK`
+- 确认 SDK 路径正确（通常在 `C:\Users\<用户名>\AppData\Local\Android\Sdk`）
+- 确认已安装 `Android 14 (API 34)` 平台
+
+**4. 检查运行配置**
+- 顶部工具栏 Run 按钮左侧的下拉框，应显示 `app`
+- 如果显示 "Edit Configurations..."，点击后点 `+` → `Android App`，Module 选择 `app.app.main`
+
+**5. 重新导入项目**
+- 如果以上均无效：`File → Close Project` → 在欢迎界面删除项目 → `Open` 重新打开项目目录
+- 等待 Gradle Sync 完成后再试
 
 ### 运行
 横屏模式运行，推荐使用平板或大屏手机以获得最佳操作体验。
