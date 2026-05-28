@@ -245,7 +245,7 @@ class Player : Entity() {
             val worldDY = -moveDir.x / tw + moveDir.y / th
             val worldDir = Vector2(worldDX, worldDY).normalized
 
-            val effectiveSpeed = if (dashSpeedBoostTimer > 0) speed * 1f else speed
+            val effectiveSpeed = if (dashSpeedBoostTimer > 0) speed * 1.5f else speed
             velocity.x += (worldDir.x * effectiveSpeed - velocity.x) * 12f * dt
             velocity.y += (worldDir.y * effectiveSpeed - velocity.y) * 12f * dt
 
@@ -276,7 +276,7 @@ class Player : Entity() {
         stateMachine.transitionTo(PlayerState.ATTACK1)
 
         lungeTowardEnemy(game, 40f)
-        val isCrit = comboAlwaysCrit && comboStep == 3 || rollCrit()
+        val isCrit = comboAlwaysCrit || rollCrit()
         var dmg = attackDamage1 + warCryDamageBonus + allDamageBonus
         if (isCrit) dmg *= critMultiplier
         dmg = applyConditionalDamage(dmg, game)
@@ -302,7 +302,7 @@ class Player : Entity() {
         stateMachine.transitionTo(PlayerState.ATTACK2)
 
         lungeTowardEnemy(game, 45f)
-        val isCrit = comboAlwaysCrit && comboStep == 3 || rollCrit()
+        val isCrit = comboAlwaysCrit || rollCrit()
         var dmg = attackDamage2 + warCryDamageBonus + allDamageBonus
         if (isCrit) dmg *= critMultiplier
         dmg = applyConditionalDamage(dmg, game)

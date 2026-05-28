@@ -38,7 +38,12 @@ enum class RoomType {
     COMBAT,
     REWARD,
     SHOP,
-    BOSS
+    BOSS,
+    ELITE,
+    TREASURE,
+    EVENT,
+    REST,
+    HIDDEN
 }
 
 enum class LayerId {

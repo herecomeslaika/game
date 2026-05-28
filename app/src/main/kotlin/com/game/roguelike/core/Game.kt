@@ -31,11 +31,11 @@ class Game(private val context: Context) {
     val enemies = mutableListOf<Enemy>()
     val projectiles = mutableListOf<Projectile>()
     val particles = mutableListOf<Particle>()
+    val ghosts = mutableListOf<GhostSummon>()
 
     var currentLayer: Layer? = null
     var currentRoom: Room? = null
     var currentLayerIndex = 0
-    var currentRoomIndex = 0
 
     var gold = 0
     val blessings = mutableListOf<Blessing>()
@@ -56,7 +56,6 @@ class Game(private val context: Context) {
     var transitionTarget: GameState? = null
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
-    var summonTimer = 0f
 
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
@@ -189,6 +188,19 @@ class Game(private val context: Context) {
             val enemy = enemyIter.next()
             if (enemy.isDead && enemy.deathAnimationDone) {
                 gold += enemy.goldDrop
+                // Hades summon: spawn ghost on kill
+                if (player.hasSummon && ghosts.size < 3) {
+                    ghosts.add(GhostSummon(enemy.position))
+                    for (i in 0..5) {
+                        particles.add(Particle(
+                            position = Vector2(enemy.position.x, enemy.position.y),
+                            velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 80f, -50f),
+                            color = android.graphics.Color.parseColor("#AA44FF"),
+                            life = 0.5f,
+                            size = 4f
+                        ))
+                    }
+                }
                 enemyIter.remove()
             }
         }
@@ -212,7 +224,7 @@ class Game(private val context: Context) {
         }
 
         // Check room clear
-        if ((room.type == RoomType.COMBAT || room.type == RoomType.BOSS) && !room.cleared) {
+        if ((room.type == RoomType.COMBAT || room.type == RoomType.ELITE || room.type == RoomType.BOSS) && !room.cleared) {
             if (enemies.isEmpty()) {
                 room.cleared = true
                 room.unlockDoors()
@@ -237,13 +249,14 @@ class Game(private val context: Context) {
             }
         }
 
-        // Hades summon (ghost helper on kill)
-        if (player.hasSummon && summonTimer <= 0f) {
-            // Check if any enemy was recently killed
-            // Summon timer resets when enemy dies (handled in enemy removal)
-        }
-        if (summonTimer > 0) {
-            summonTimer -= dt
+        // Hades summon — update ghosts
+        val ghostIter = ghosts.iterator()
+        while (ghostIter.hasNext()) {
+            val ghost = ghostIter.next()
+            ghost.update(dt, this)
+            if (ghost.isDead) {
+                ghostIter.remove()
+            }
         }
 
         // Fire trail particles damage player
@@ -282,9 +295,8 @@ class Game(private val context: Context) {
                     gameState = GameState.VICTORY
                     return
                 }
-                currentLayer = Layer.create(currentLayerIndex)
-                currentRoomIndex = 0
-                currentRoom = currentLayer!!.rooms[0]
+                currentLayer = Layer(currentLayerIndex)
+                currentRoom = currentLayer!!.getCurrentRoom()
                 loadRoom(currentRoom!!)
                 transitionTarget = GameState.PLAYING
             }
@@ -346,51 +358,86 @@ class Game(private val context: Context) {
         currentRoom = room
         enemies.clear()
         projectiles.clear()
+        ghosts.clear()
         merchant = null
 
         player.position.set(room.spawnPoint)
         player.velocity.set(Vector2.ZERO)
 
         when (room.type) {
-            RoomType.ENTRY -> {
-                // No enemies
-            }
-            RoomType.COMBAT -> {
-                room.spawnEnemies(this)
-            }
+            RoomType.ENTRY -> {}
+            RoomType.COMBAT -> room.spawnEnemies(this)
+            RoomType.ELITE -> room.spawnEnemies(this) // elite uses combat spawn but harder
             RoomType.REWARD -> {
                 gameState = GameState.BLESSING_SELECT
                 blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
-            RoomType.SHOP -> {
-                merchant = Merchant(room.merchantPosition)
+            RoomType.TREASURE -> {
+                gameState = GameState.BLESSING_SELECT
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
-            RoomType.BOSS -> {
-                room.spawnBoss(this)
+            RoomType.SHOP -> merchant = Merchant(room.merchantPosition)
+            RoomType.BOSS -> room.spawnBoss(this)
+            RoomType.EVENT -> {
+                // Random event: heal or blessing
+                if (kotlin.random.Random.nextFloat() < 0.5f) {
+                    player.health = (player.health + (player.maxHealth * 0.2f).toInt()).coerceAtMost(player.maxHealth)
+                } else {
+                    gameState = GameState.BLESSING_SELECT
+                    blessingSelector.generateOffering(currentLayerIndex, blessings)
+                }
+            }
+            RoomType.REST -> {
+                player.health = (player.health + (player.maxHealth * 0.3f).toInt()).coerceAtMost(player.maxHealth)
+            }
+            RoomType.HIDDEN -> {
+                gameState = GameState.BLESSING_SELECT
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
         }
     }
 
     fun goToNextRoom() {
         val layer = currentLayer ?: return
-        currentRoomIndex++
-        if (currentRoomIndex >= layer.rooms.size) {
-            gameState = GameState.LAYER_TRANSITION
-            transitionAlpha = 0f
-            transitionTarget = null
+        val connected = layer.getConnectedRooms()
+
+        if (connected.isEmpty()) {
+            // No more rooms — boss cleared, transition to next layer
+            if (layer.isBossRoom() && currentRoom?.cleared == true) {
+                gameState = GameState.LAYER_TRANSITION
+                transitionAlpha = 0f
+                transitionTarget = null
+            }
             return
         }
-        loadRoom(layer.rooms[currentRoomIndex])
+
+        // If only one connection, go directly
+        if (connected.size == 1) {
+            val nextRoom = layer.goToRoom(connected[0].id)
+            loadRoom(nextRoom)
+            return
+        }
+
+        // Multiple paths — auto-pick the first available connection
+        // (Future: add room selection UI with ROOM_SELECT state)
+        val nextRoom = layer.goToRoom(connected[0].id)
+        loadRoom(nextRoom)
+    }
+
+    fun goToRoomById(roomId: Int) {
+        val layer = currentLayer ?: return
+        val nextRoom = layer.goToRoom(roomId)
+        loadRoom(nextRoom)
     }
 
     fun startNewRun() {
         gold = 0
         blessings.clear()
+        ghosts.clear()
         player.reset()
         currentLayerIndex = 0
-        currentLayer = Layer.create(0)
-        currentRoomIndex = 0
-        currentRoom = currentLayer!!.rooms[0]
+        currentLayer = Layer(currentLayerIndex)
+        currentRoom = currentLayer!!.getCurrentRoom()
         loadRoom(currentRoom!!)
         gameState = GameState.PLAYING
     }
@@ -538,6 +585,11 @@ class Game(private val context: Context) {
             renderer.renderProjectile(canvas, proj)
         }
 
+        // Ghost summons
+        for (ghost in ghosts) {
+            ghost.render(canvas, renderer)
+        }
+
         // Particles
         for (particle in particles) {
             renderer.renderParticle(canvas, particle)
@@ -553,7 +605,7 @@ class Game(private val context: Context) {
         // UI (not affected by shake)
         virtualJoystick.render(canvas)
         actionButtons.render(canvas, this)
-        hud.render(canvas, player, gold, blessings, currentLayerIndex, currentRoomIndex)
+        hud.render(canvas, player, gold, blessings, currentLayerIndex)
     }
 
     private fun renderGameOver(canvas: android.graphics.Canvas) {

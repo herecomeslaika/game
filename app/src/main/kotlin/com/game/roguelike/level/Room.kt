@@ -10,7 +10,8 @@ class Room(
     val width: Int = 20,
     val height: Int = 14,
     val type: RoomType,
-    val layerIndex: Int = 0
+    val layerIndex: Int = 0,
+    var roomId: Int = -1
 ) {
     companion object {
         const val TILE_FLOOR = 0
@@ -99,6 +100,46 @@ class Room(
                 doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = true))
                 spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
                 generateBossLayout()
+            }
+            RoomType.ELITE -> {
+                setTile(0, height / 2, TILE_DOOR)
+                setTile(width - 1, height / 2, TILE_DOOR)
+                doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = true))
+                doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = true))
+                spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
+                generateCombatLayout()
+            }
+            RoomType.TREASURE -> {
+                setTile(0, height / 2, TILE_DOOR)
+                setTile(width - 1, height / 2, TILE_DOOR)
+                doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = false))
+                doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = false))
+                spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
+                generateRewardLayout()
+            }
+            RoomType.EVENT -> {
+                setTile(0, height / 2, TILE_DOOR)
+                setTile(width - 1, height / 2, TILE_DOOR)
+                doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = false))
+                doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = false))
+                spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
+                generateEntryLayout()
+            }
+            RoomType.REST -> {
+                setTile(0, height / 2, TILE_DOOR)
+                setTile(width - 1, height / 2, TILE_DOOR)
+                doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = false))
+                doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = false))
+                spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
+                generateEntryLayout()
+            }
+            RoomType.HIDDEN -> {
+                setTile(0, height / 2, TILE_DOOR)
+                setTile(width - 1, height / 2, TILE_DOOR)
+                doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = false))
+                doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = false))
+                spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
+                generateRewardLayout()
             }
         }
     }

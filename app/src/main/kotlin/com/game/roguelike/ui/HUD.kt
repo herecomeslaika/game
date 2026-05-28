@@ -24,7 +24,7 @@ class HUD {
         barWidth = screenW * 0.25f
     }
 
-    fun render(canvas: Canvas, player: Player, gold: Int, blessings: List<Blessing>, layerIndex: Int, roomIndex: Int) {
+    fun render(canvas: Canvas, player: Player, gold: Int, blessings: List<Blessing>, layerIndex: Int) {
         // HP bar background
         bgPaint.color = Color.argb(150, 0, 0, 0)
         paint.style = Paint.Style.FILL
@@ -62,7 +62,7 @@ class HUD {
         }
         paint.color = Color.parseColor("#AABBCC")
         paint.textSize = 12f
-        canvas.drawText("$layerName - 第${roomIndex + 1}间", hudX, hudY + 55f, paint)
+        canvas.drawText(layerName, hudX, hudY + 55f, paint)
 
         // Blessing icons (god-colored)
         var bx = hudX
