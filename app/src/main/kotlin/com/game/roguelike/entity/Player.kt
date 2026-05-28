@@ -528,7 +528,7 @@ class Player : Entity() {
                 val ty = gridY + dy
                 if (tx < 0 || tx >= room.width || ty < 0 || ty >= room.height) continue
                 val tile = room.getTile(tx, ty)
-                if (tile == Room.TILE_OBSTACLE) {
+                if (tile == Room.TILE_OBSTACLE || tile == Room.TILE_PILLAR || tile == Room.TILE_LAVA || tile == Room.TILE_WATER) {
                     val tileMinX = tx * tw
                     val tileMinY = ty * th
                     val tileMaxX = tileMinX + tw

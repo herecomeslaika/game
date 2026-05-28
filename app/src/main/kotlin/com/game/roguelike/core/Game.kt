@@ -52,6 +52,7 @@ class Game(private val context: Context) {
     var shakeDuration = 0f
     var transitionAlpha = 0f
     var transitionTarget: GameState? = null
+    var spikeDamageTimer = 0f
 
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
@@ -219,6 +220,9 @@ class Game(private val context: Context) {
             }
         }
 
+        // Spike damage — check if player is standing on a spike tile
+        checkSpikeDamage(room, dt)
+
         // Fire trail particles damage player
         // Use index-based iteration to avoid ConcurrentModificationException
         // (takeDamage adds particles to the same list)
@@ -295,6 +299,24 @@ class Game(private val context: Context) {
     fun shake(amount: Float, duration: Float) {
         shakeAmount = amount
         shakeDuration = duration
+    }
+
+    private fun checkSpikeDamage(room: Room, dt: Float) {
+        val tw = 64f
+        val th = 32f
+        val gridX = (player.position.x / tw).toInt().coerceIn(0, room.width - 1)
+        val gridY = (player.position.y / th).toInt().coerceIn(0, room.height - 1)
+        val tile = room.getTile(gridX, gridY)
+
+        if (tile == Room.TILE_SPIKE && !player.isDashInvincible) {
+            spikeDamageTimer += dt
+            if (spikeDamageTimer >= 1f) {
+                spikeDamageTimer = 0f
+                player.takeDamage(5, this)
+            }
+        } else {
+            spikeDamageTimer = 0f
+        }
     }
 
     fun loadRoom(room: Room) {
