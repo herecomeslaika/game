@@ -3,9 +3,10 @@ package com.game.roguelike.ui
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Typeface
+import android.graphics.Path
 import com.game.roguelike.blessing.Blessing
-import com.game.roguelike.blessing.BlessingRarity
+import com.game.roguelike.core.BlessingRarity
+import com.game.roguelike.core.GodType
 
 class BlessingSelectUI {
     private var w = 1920f
@@ -19,13 +20,13 @@ class BlessingSelectUI {
     private val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFD700")
         textSize = 48f
-        typeface = Typeface.DEFAULT_BOLD
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.CENTER
     }
     private val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 24f
-        typeface = Typeface.DEFAULT_BOLD
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.CENTER
     }
     private val descPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -35,9 +36,10 @@ class BlessingSelectUI {
     }
     private val typePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 16f
-        typeface = Typeface.DEFAULT_BOLD
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.CENTER
     }
+    private var animTime = 0f
 
     fun updateLayout(screenW: Int, screenH: Int) {
         w = screenW.toFloat()
@@ -45,7 +47,9 @@ class BlessingSelectUI {
         cardY = h / 2f - cardHeight / 2f
     }
 
-    fun update(dt: Float) {}
+    fun update(dt: Float) {
+        animTime += dt
+    }
 
     fun render(canvas: Canvas, offerings: List<Blessing>) {
         // Dark overlay
@@ -70,11 +74,14 @@ class BlessingSelectUI {
     }
 
     private fun drawBlessingCard(canvas: Canvas, x: Float, y: Float, blessing: Blessing) {
+        val isDuo = blessing.rarity == BlessingRarity.DUO
+
         // Card background
         val bgColor = when (blessing.rarity) {
             BlessingRarity.COMMON -> Color.argb(220, 40, 40, 50)
             BlessingRarity.RARE -> Color.argb(220, 30, 30, 80)
             BlessingRarity.EPIC -> Color.argb(220, 60, 30, 60)
+            BlessingRarity.DUO -> Color.argb(220, 50, 30, 70)
         }
         paint.color = bgColor
         paint.style = Paint.Style.FILL
@@ -85,39 +92,66 @@ class BlessingSelectUI {
             BlessingRarity.COMMON -> Color.parseColor("#888888")
             BlessingRarity.RARE -> Color.parseColor("#4488FF")
             BlessingRarity.EPIC -> Color.parseColor("#FF44FF")
+            BlessingRarity.DUO -> Color.parseColor("#FFD700")
         }
         paint.color = borderColor
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3f
+        paint.strokeWidth = if (isDuo) 4f else 3f
         canvas.drawRoundRect(x, y, x + cardWidth, y + cardHeight, 15f, 15f, paint)
 
-        // Type icon
-        typePaint.color = when (blessing.type) {
-            com.game.roguelike.core.BlessingType.ATTACK -> Color.parseColor("#FF4444")
-            com.game.roguelike.core.BlessingType.SPECIAL -> Color.parseColor("#4444FF")
-            com.game.roguelike.core.BlessingType.DASH -> Color.parseColor("#44FF44")
-            com.game.roguelike.core.BlessingType.SUPPORT -> Color.parseColor("#FFAA44")
+        // Duo glow effect
+        if (isDuo) {
+            val glowPulse = (kotlin.math.sin(animTime * 3f) * 0.3f + 0.7f)
+            paint.color = Color.argb((60 * glowPulse).toInt(), 255, 215, 0)
+            paint.style = Paint.Style.FILL
+            canvas.drawRoundRect(x - 5f, y - 5f, x + cardWidth + 5f, y + cardHeight + 5f, 20f, 20f, paint)
+            // Re-draw card over glow
+            paint.color = bgColor
+            canvas.drawRoundRect(x, y, x + cardWidth, y + cardHeight, 15f, 15f, paint)
+            paint.color = borderColor
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 4f
+            canvas.drawRoundRect(x, y, x + cardWidth, y + cardHeight, 15f, 15f, paint)
         }
-        val typeLabel = when (blessing.type) {
-            com.game.roguelike.core.BlessingType.ATTACK -> "攻击"
-            com.game.roguelike.core.BlessingType.SPECIAL -> "技能"
-            com.game.roguelike.core.BlessingType.DASH -> "冲刺"
-            com.game.roguelike.core.BlessingType.SUPPORT -> "辅助"
-        }
-        canvas.drawText(typeLabel, x + cardWidth / 2f, y + 40f, typePaint)
 
-        // Icon circle
+        paint.strokeWidth = 1f
         paint.style = Paint.Style.FILL
+
+        // God symbol circle
+        val godColor = godColor(blessing.god)
+        typePaint.color = godColor
         canvas.drawCircle(x + cardWidth / 2f, y + 100f, 35f, typePaint)
+
+        // God icon in circle
+        paint.color = Color.WHITE
+        paint.textSize = 22f
+        paint.textAlign = Paint.Align.CENTER
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        canvas.drawText(godIcon(blessing.god), x + cardWidth / 2f, y + 107f, paint)
+
+        // God name
+        typePaint.color = godColor
+        typePaint.textSize = 16f
+        canvas.drawText(godName(blessing.god), x + cardWidth / 2f, y + 40f, typePaint)
 
         // Rarity label
         val rarityText = when (blessing.rarity) {
             BlessingRarity.COMMON -> "普通"
             BlessingRarity.RARE -> "稀有"
             BlessingRarity.EPIC -> "史诗"
+            BlessingRarity.DUO -> "DUO!"
         }
         typePaint.color = borderColor
         canvas.drawText(rarityText, x + cardWidth / 2f, y + 160f, typePaint)
+
+        // Duo pair indicator
+        if (isDuo && blessing.duoPair != null) {
+            val (g1, g2) = blessing.duoPair!!
+            typePaint.textSize = 12f
+            typePaint.color = Color.argb(180, 255, 215, 0)
+            canvas.drawText("${godName(g1)} + ${godName(g2)}", x + cardWidth / 2f, y + 175f, typePaint)
+            typePaint.textSize = 16f
+        }
 
         // Name
         namePaint.color = Color.WHITE
@@ -152,5 +186,35 @@ class BlessingSelectUI {
             }
         }
         return null
+    }
+
+    private fun godColor(god: GodType): Int = when (god) {
+        GodType.ZEUS -> Color.parseColor("#44AAFF")
+        GodType.APHRODITE -> Color.parseColor("#FF4488")
+        GodType.ARES -> Color.parseColor("#FF4444")
+        GodType.ATHENA -> Color.parseColor("#FFAA44")
+        GodType.HERMES -> Color.parseColor("#44FF88")
+        GodType.DEMETER -> Color.parseColor("#88CCFF")
+        GodType.HADES -> Color.parseColor("#AA44FF")
+    }
+
+    private fun godIcon(god: GodType): String = when (god) {
+        GodType.ZEUS -> "⚡"
+        GodType.APHRODITE -> "♥"
+        GodType.ARES -> "⚔"
+        GodType.ATHENA -> "◆"
+        GodType.HERMES -> "→"
+        GodType.DEMETER -> "❆"
+        GodType.HADES -> "☠"
+    }
+
+    private fun godName(god: GodType): String = when (god) {
+        GodType.ZEUS -> "宙斯"
+        GodType.APHRODITE -> "阿佛洛狄忒"
+        GodType.ARES -> "阿瑞斯"
+        GodType.ATHENA -> "雅典娜"
+        GodType.HERMES -> "赫尔墨斯"
+        GodType.DEMETER -> "得墨忒耳"
+        GodType.HADES -> "哈迪斯"
     }
 }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.view.SurfaceHolder
 import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.blessing.BlessingSelector
+import com.game.roguelike.core.GameState
+import com.game.roguelike.core.GodType
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.entity.*
 import com.game.roguelike.level.*
@@ -53,6 +55,8 @@ class Game(private val context: Context) {
     var transitionAlpha = 0f
     var transitionTarget: GameState? = null
     var spikeDamageTimer = 0f
+    var frostFieldTimer = 0f
+    var summonTimer = 0f
 
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
@@ -223,6 +227,25 @@ class Game(private val context: Context) {
         // Spike damage — check if player is standing on a spike tile
         checkSpikeDamage(room, dt)
 
+        // Frost field (Demeter RARE: freeze nearest enemy periodically)
+        if (player.supportFreeze) {
+            frostFieldTimer += dt
+            if (frostFieldTimer >= player.supportCooldown) {
+                frostFieldTimer = 0f
+                val nearest = enemies.filter { !it.isDead }.minByOrNull { it.position.distanceTo(player.position) }
+                nearest?.freezeTimer = player.freezeDuration
+            }
+        }
+
+        // Hades summon (ghost helper on kill)
+        if (player.hasSummon && summonTimer <= 0f) {
+            // Check if any enemy was recently killed
+            // Summon timer resets when enemy dies (handled in enemy removal)
+        }
+        if (summonTimer > 0) {
+            summonTimer -= dt
+        }
+
         // Fire trail particles damage player
         // Use index-based iteration to avoid ConcurrentModificationException
         // (takeDamage adds particles to the same list)
@@ -374,8 +397,64 @@ class Game(private val context: Context) {
 
     fun selectBlessing(blessing: Blessing) {
         blessings.add(blessing)
-        blessing.applyTo(player, this)
+        player.ownedGods.add(blessing.god)
+        applyBlessingEffect(blessing, player)
         gameState = GameState.PLAYING
+    }
+
+    private fun applyBlessingEffect(blessing: Blessing, player: Player) {
+        when (blessing.id) {
+            // ZEUS
+            Blessing.SWIFT_THUNDER.id -> player.specialCooldown *= 0.7f
+            Blessing.LIGHTNING_CHAIN.id -> player.lightningBounce = true
+            Blessing.TRIPLE_DAGGER.id -> player.knifeCount = 3
+            Blessing.ZEUS_WRATH.id -> { player.knifeExplosive = true; player.specialDamage += 5f }
+
+            // APHRODITE
+            Blessing.HEART_STRIKE.id -> { player.attackDamage1 *= 1.3f; player.attackDamage2 *= 1.3f; player.attackDamage3 *= 1.3f }
+            Blessing.TENDER_BLOOM.id -> player.attackRangeBonus = 15f
+            Blessing.HEARTBREAK.id -> { player.critChance = 0.2f; player.critMultiplier = 2f }
+            Blessing.EMPTY_HEART.id -> player.critHealAmount = 5f
+
+            // ARES
+            Blessing.WAR_SPIRIT.id -> player.attackSpeedMultiplier += 0.25f
+            Blessing.BLOODLUST.id -> player.killHealAmount = 10f
+            Blessing.WAR_FURY.id -> { player.warCryDamageBonus = player.attackDamage1 * 0.25f }
+            Blessing.BLOOD_MASSACRE.id -> player.comboAlwaysCrit = true
+
+            // ATHENA
+            Blessing.DIVINE_SHIELD.id -> { player.athenaShieldActive = true; player.athenaShieldCooldown = 10f }
+            Blessing.WISDOM_DASH.id -> player.dashCooldown *= 0.6f
+            Blessing.REFLECT_DASH.id -> player.dashInvincibleExtension = 0.3f
+            Blessing.DIVINE_PROTECTION.id -> player.shieldInvincibleDuration = 3f
+
+            // HERMES
+            Blessing.SWIFT_STEP.id -> player.dashCooldown *= 0.5f
+            Blessing.LONG_DASH.id -> player.dashDuration *= 1.4f
+            Blessing.DODGE_MASTER.id -> player.dashSpeedBoostDuration = 2f
+            Blessing.TIME_SLOW.id -> player.dashSlowNearby = 3f
+
+            // DEMETER
+            Blessing.HEALING_GRACE.id -> player.health = (player.health + (player.maxHealth * 0.3f).toInt()).coerceAtMost(player.maxHealth)
+            Blessing.FROST_HEART.id -> player.slowOnHit = 2f
+            Blessing.ICE_FIELD.id -> { player.supportFreeze = true; player.freezeDuration = 1.5f }
+            Blessing.DEAD_OF_WINTER.id -> player.freezeDamageMultiplier = 2f
+
+            // HADES
+            Blessing.UNDERWORLD_POWER.id -> { player.allDamageBonus = player.attackDamage1 * 0.15f }
+            Blessing.DEATH_GAZE.id -> player.lowHpDamageMultiplier = 2f
+            Blessing.UNDERWORLD_SUMMON.id -> player.hasSummon = true
+            Blessing.FINAL_CALAMITY.id -> player.bossDamageBonus = 0.5f
+
+            // DUO blessings
+            Blessing.DUO_HEART_LIGHTNING.id -> player.duoHeartLightning = true
+            Blessing.DUO_THUNDER_SHIELD.id -> player.duoThunderShield = true
+            Blessing.DUO_BLOOD_HEART.id -> { player.duoBloodHeart = true; player.attackDamage1 *= 1.3f }
+            Blessing.DUO_SPEED_SHIELD.id -> { player.duoSpeedShield = true; player.dashCooldown *= 0.5f }
+            Blessing.DUO_ICE_BLOOD.id -> { player.duoIceBlood = true; player.killHealAmount += 5f }
+            Blessing.DUO_DEATH_LOVE.id -> player.duoDeathLove = true
+            Blessing.DUO_JUDGEMENT.id -> player.duoJudgement = true
+        }
     }
 
     private fun render() {

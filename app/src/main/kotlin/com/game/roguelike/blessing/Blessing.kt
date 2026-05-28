@@ -1,83 +1,216 @@
 package com.game.roguelike.blessing
 
+import com.game.roguelike.core.GodType
+import com.game.roguelike.core.BlessingRarity
 import com.game.roguelike.core.BlessingType
-import com.game.roguelike.core.Game
-import com.game.roguelike.entity.Player
-
-enum class BlessingRarity {
-    COMMON, RARE, EPIC
-}
 
 data class Blessing(
+    val id: String,
     val name: String,
-    val type: BlessingType,
     val description: String,
+    val type: BlessingType,
+    val god: GodType,
     val rarity: BlessingRarity,
-    val applyTo: (Player, Game) -> Unit
-)
+    val duoPair: Pair<GodType, GodType>? = null
+) {
+    companion object {
+        // ========== ZEUS (宙斯) — 特殊攻击系 ==========
+        val SWIFT_THUNDER = Blessing(
+            "swift_thunder", "迅雷", "飞刀冷却-30%",
+            BlessingType.SPECIAL, GodType.ZEUS, BlessingRarity.COMMON
+        )
+        val LIGHTNING_CHAIN = Blessing(
+            "lightning_chain", "闪电链", "飞刀命中闪电弹跳至附近敌人",
+            BlessingType.SPECIAL, GodType.ZEUS, BlessingRarity.COMMON
+        )
+        val TRIPLE_DAGGER = Blessing(
+            "triple_dagger", "三重飞刀", "一次投掷3把飞刀",
+            BlessingType.SPECIAL, GodType.ZEUS, BlessingRarity.RARE
+        )
+        val ZEUS_WRATH = Blessing(
+            "zeus_wrath", "宙斯之怒", "飞刀命中产生雷暴范围伤害",
+            BlessingType.SPECIAL, GodType.ZEUS, BlessingRarity.EPIC
+        )
 
-object BlessingData {
-    val all = listOf(
-        // ATTACK
-        Blessing("迅捷打击", BlessingType.ATTACK, "攻击速度+30%", BlessingRarity.COMMON) { p, _ ->
-            p.attackSpeedMultiplier += 0.3f
-        },
-        Blessing("血色锋刃", BlessingType.ATTACK, "连招伤害+50%", BlessingRarity.RARE) { p, _ ->
-            p.attackDamage1 *= 1.3f; p.attackDamage2 *= 1.5f; p.attackDamage3 *= 1.5f
-        },
-        Blessing("连锁斩击", BlessingType.ATTACK, "连招命中溅射周围敌人", BlessingRarity.EPIC) { p, _ ->
-            p.comboSplashRadius = 60f
-        },
-        Blessing("重击", BlessingType.ATTACK, "普攻伤害+40%", BlessingRarity.COMMON) { p, _ ->
-            p.attackDamage1 *= 1.4f; p.attackDamage2 *= 1.4f; p.attackDamage3 *= 1.4f
-        },
-        // SPECIAL
-        Blessing("三重飞刀", BlessingType.SPECIAL, "一次投掷3把飞刀", BlessingRarity.RARE) { p, _ ->
-            p.knifeCount = 3
-        },
-        Blessing("穿透之刃", BlessingType.SPECIAL, "飞刀穿透敌人", BlessingRarity.COMMON) { p, _ ->
-            p.knifePierce = true
-        },
-        Blessing("爆裂飞刀", BlessingType.SPECIAL, "飞刀命中后爆炸", BlessingRarity.EPIC) { p, _ ->
-            p.knifeExplosive = true
-        },
-        Blessing("速射", BlessingType.SPECIAL, "飞刀冷却-40%", BlessingRarity.COMMON) { p, _ ->
-            p.specialCooldown *= 0.6f
-        },
-        // DASH
-        Blessing("疾步冲刺", BlessingType.DASH, "冲刺冷却-50%", BlessingRarity.COMMON) { p, _ ->
-            p.dashCooldown *= 0.5f
-        },
-        Blessing("冲刺打击", BlessingType.DASH, "冲刺时造成伤害", BlessingRarity.RARE) { p, _ ->
-            p.dashDamage = 8f
-        },
-        Blessing("残影", BlessingType.DASH, "冲刺留下伤害轨迹", BlessingRarity.EPIC) { p, _ ->
-            p.dashTrailDamage = 5f
-        },
-        Blessing("长距冲刺", BlessingType.DASH, "冲刺距离+50%", BlessingRarity.COMMON) { p, _ ->
-            p.dashDuration *= 1.5f
-        },
-        // SUPPORT
-        Blessing("宙斯之雷", BlessingType.SUPPORT, "每8秒闪电攻击最近敌人", BlessingRarity.RARE) { p, g ->
-            p.supportCooldown = 8f
-        },
-        Blessing("雅典娜之盾", BlessingType.SUPPORT, "每10秒自动抵挡一次攻击", BlessingRarity.EPIC) { p, _ ->
-            p.athenaShieldActive = true
-        },
-        Blessing("战神之怒", BlessingType.SUPPORT, "击杀后+20%伤害5秒", BlessingRarity.RARE) { p, _ ->
-            p.warCryDamageBonus = p.attackDamage1 * 0.2f
-        },
-        Blessing("治愈恩典", BlessingType.SUPPORT, "恢复30%生命值", BlessingRarity.COMMON) { p, _ ->
-            p.health = (p.health + (p.maxHealth * 0.3f).toInt()).coerceAtMost(p.maxHealth)
-        },
-    )
+        // ========== APHRODITE (阿佛洛狄忒) — 攻击系 ==========
+        val HEART_STRIKE = Blessing(
+            "heart_strike", "心之打击", "普攻伤害+30%",
+            BlessingType.ATTACK, GodType.APHRODITE, BlessingRarity.COMMON
+        )
+        val TENDER_BLOOM = Blessing(
+            "tender_bloom", "柔情", "连招范围+20%",
+            BlessingType.ATTACK, GodType.APHRODITE, BlessingRarity.COMMON
+        )
+        val HEARTBREAK = Blessing(
+            "heartbreak", "心碎", "暴击率20%，暴击伤害×2",
+            BlessingType.ATTACK, GodType.APHRODITE, BlessingRarity.RARE
+        )
+        val EMPTY_HEART = Blessing(
+            "empty_heart", "空虚之心", "暴击时回复5生命",
+            BlessingType.ATTACK, GodType.APHRODITE, BlessingRarity.EPIC
+        )
 
-    fun getForLayer(layerIndex: Int): List<Blessing> {
-        return when (layerIndex) {
-            0 -> all.filter { it.rarity != BlessingRarity.EPIC }
-            1 -> all
-            2 -> all
-            else -> all
+        // ========== ARES (阿瑞斯) — 攻击系 ==========
+        val WAR_SPIRIT = Blessing(
+            "war_spirit", "战意", "攻击速度+25%",
+            BlessingType.ATTACK, GodType.ARES, BlessingRarity.COMMON
+        )
+        val BLOODLUST = Blessing(
+            "bloodlust", "嗜血", "杀敌回复10生命",
+            BlessingType.ATTACK, GodType.ARES, BlessingRarity.RARE
+        )
+        val WAR_FURY = Blessing(
+            "war_fury", "战神之怒", "击杀后+25%伤害5秒",
+            BlessingType.ATTACK, GodType.ARES, BlessingRarity.RARE
+        )
+        val BLOOD_MASSACRE = Blessing(
+            "blood_massacre", "血色屠杀", "连招3击全部暴击",
+            BlessingType.ATTACK, GodType.ARES, BlessingRarity.EPIC
+        )
+
+        // ========== ATHENA (雅典娜) — 冲刺系 ==========
+        val DIVINE_SHIELD = Blessing(
+            "divine_shield", "神盾", "每10秒抵挡1次攻击",
+            BlessingType.DASH, GodType.ATHENA, BlessingRarity.COMMON
+        )
+        val WISDOM_DASH = Blessing(
+            "wisdom_dash", "智慧冲刺", "冲刺冷却-40%",
+            BlessingType.DASH, GodType.ATHENA, BlessingRarity.COMMON
+        )
+        val REFLECT_DASH = Blessing(
+            "reflect_dash", "反弹冲刺", "冲刺反弹敌人攻击，无敌延长",
+            BlessingType.DASH, GodType.ATHENA, BlessingRarity.RARE
+        )
+        val DIVINE_PROTECTION = Blessing(
+            "divine_protection", "神圣庇护", "挡攻击后3秒无敌",
+            BlessingType.DASH, GodType.ATHENA, BlessingRarity.EPIC
+        )
+
+        // ========== HERMES (赫尔墨斯) — 冲刺系 ==========
+        val SWIFT_STEP = Blessing(
+            "swift_step", "快步", "冲刺冷却-50%",
+            BlessingType.DASH, GodType.HERMES, BlessingRarity.COMMON
+        )
+        val LONG_DASH = Blessing(
+            "long_dash", "长距冲刺", "冲刺距离+40%",
+            BlessingType.DASH, GodType.HERMES, BlessingRarity.COMMON
+        )
+        val DODGE_MASTER = Blessing(
+            "dodge_master", "闪避大师", "冲刺后2秒攻速+50%",
+            BlessingType.DASH, GodType.HERMES, BlessingRarity.RARE
+        )
+        val TIME_SLOW = Blessing(
+            "time_slow", "时之缓流", "冲刺时减速周围敌人3秒",
+            BlessingType.DASH, GodType.HERMES, BlessingRarity.EPIC
+        )
+
+        // ========== DEMETER (得墨忒耳) — 支援系 ==========
+        val HEALING_GRACE = Blessing(
+            "healing_grace", "治愈恩典", "恢复30%生命",
+            BlessingType.SUPPORT, GodType.DEMETER, BlessingRarity.COMMON
+        )
+        val FROST_HEART = Blessing(
+            "frost_heart", "冰霜之心", "攻击减速敌人2秒",
+            BlessingType.SUPPORT, GodType.DEMETER, BlessingRarity.COMMON
+        )
+        val ICE_FIELD = Blessing(
+            "ice_field", "寒冰领域", "每8秒冰冻最近敌人1.5秒",
+            BlessingType.SUPPORT, GodType.DEMETER, BlessingRarity.RARE
+        )
+        val DEAD_OF_WINTER = Blessing(
+            "dead_of_winter", "冥冬", "冰冻敌人受到伤害×2",
+            BlessingType.SUPPORT, GodType.DEMETER, BlessingRarity.EPIC
+        )
+
+        // ========== HADES (哈迪斯) — 支援系 ==========
+        val UNDERWORLD_POWER = Blessing(
+            "underworld_power", "冥界之力", "所有伤害+15%",
+            BlessingType.SUPPORT, GodType.HADES, BlessingRarity.COMMON
+        )
+        val DEATH_GAZE = Blessing(
+            "death_gaze", "死亡凝视", "低血量(<30%)时伤害×2",
+            BlessingType.SUPPORT, GodType.HADES, BlessingRarity.RARE
+        )
+        val UNDERWORLD_SUMMON = Blessing(
+            "underworld_summon", "冥界召唤", "杀敌召唤幽灵助战3秒",
+            BlessingType.SUPPORT, GodType.HADES, BlessingRarity.RARE
+        )
+        val FINAL_CALAMITY = Blessing(
+            "final_calamity", "终末之灾", "Boss伤害+50%",
+            BlessingType.SUPPORT, GodType.HADES, BlessingRarity.EPIC
+        )
+
+        // ========== DUO 组合祝福 ==========
+        val DUO_HEART_LIGHTNING = Blessing(
+            "duo_heart_lightning", "心电感应", "暴击时闪电连锁所有附近敌人",
+            BlessingType.ATTACK, GodType.ZEUS, BlessingRarity.DUO,
+            duoPair = Pair(GodType.ZEUS, GodType.APHRODITE)
+        )
+        val DUO_THUNDER_SHIELD = Blessing(
+            "duo_thunder_shield", "雷盾反弹", "挡攻击时释放闪电",
+            BlessingType.DASH, GodType.ATHENA, BlessingRarity.DUO,
+            duoPair = Pair(GodType.ZEUS, GodType.ATHENA)
+        )
+        val DUO_BLOOD_HEART = Blessing(
+            "duo_blood_heart", "嗜血之心", "暴击回复10生命+伤害+30%",
+            BlessingType.ATTACK, GodType.ARES, BlessingRarity.DUO,
+            duoPair = Pair(GodType.APHRODITE, GodType.ARES)
+        )
+        val DUO_SPEED_SHIELD = Blessing(
+            "duo_speed_shield", "神速之盾", "冲刺自动挡+冷却减半",
+            BlessingType.DASH, GodType.HERMES, BlessingRarity.DUO,
+            duoPair = Pair(GodType.HERMES, GodType.ATHENA)
+        )
+        val DUO_ICE_BLOOD = Blessing(
+            "duo_ice_blood", "冰血战意", "减速敌人受伤×1.5+杀敌回复",
+            BlessingType.ATTACK, GodType.DEMETER, BlessingRarity.DUO,
+            duoPair = Pair(GodType.DEMETER, GodType.ARES)
+        )
+        val DUO_DEATH_LOVE = Blessing(
+            "duo_death_love", "死亡之爱", "低血量暴击率100%",
+            BlessingType.ATTACK, GodType.HADES, BlessingRarity.DUO,
+            duoPair = Pair(GodType.HADES, GodType.APHRODITE)
+        )
+        val DUO_JUDGEMENT = Blessing(
+            "duo_judgement", "冥雷审判", "Boss击杀闪电全屏伤害",
+            BlessingType.SPECIAL, GodType.HADES, BlessingRarity.DUO,
+            duoPair = Pair(GodType.HADES, GodType.ZEUS)
+        )
+
+        val ALL_BLESSINGS = listOf(
+            // Zeus
+            SWIFT_THUNDER, LIGHTNING_CHAIN, TRIPLE_DAGGER, ZEUS_WRATH,
+            // Aphrodite
+            HEART_STRIKE, TENDER_BLOOM, HEARTBREAK, EMPTY_HEART,
+            // Ares
+            WAR_SPIRIT, BLOODLUST, WAR_FURY, BLOOD_MASSACRE,
+            // Athena
+            DIVINE_SHIELD, WISDOM_DASH, REFLECT_DASH, DIVINE_PROTECTION,
+            // Hermes
+            SWIFT_STEP, LONG_DASH, DODGE_MASTER, TIME_SLOW,
+            // Demeter
+            HEALING_GRACE, FROST_HEART, ICE_FIELD, DEAD_OF_WINTER,
+            // Hades
+            UNDERWORLD_POWER, DEATH_GAZE, UNDERWORLD_SUMMON, FINAL_CALAMITY
+        )
+
+        val ALL_DUO_BLESSINGS = listOf(
+            DUO_HEART_LIGHTNING, DUO_THUNDER_SHIELD, DUO_BLOOD_HEART,
+            DUO_SPEED_SHIELD, DUO_ICE_BLOOD, DUO_DEATH_LOVE, DUO_JUDGEMENT
+        )
+
+        /** Get blessings by god */
+        fun getByGod(god: GodType) = ALL_BLESSINGS.filter { it.god == god }
+
+        /** Get blessings by rarity */
+        fun getByRarity(rarity: BlessingRarity) = ALL_BLESSINGS.filter { it.rarity == rarity }
+
+        /** Check if duo blessing is available based on owned blessings */
+        fun getAvailableDuo(ownedGods: Set<GodType>): List<Blessing> {
+            return ALL_DUO_BLESSINGS.filter { duo ->
+                val (g1, g2) = duo.duoPair!!
+                g1 in ownedGods && g2 in ownedGods
+            }
         }
     }
 }

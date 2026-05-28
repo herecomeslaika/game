@@ -54,6 +54,23 @@ enum class BlessingType {
     SUPPORT
 }
 
+enum class BlessingRarity {
+    COMMON,
+    RARE,
+    EPIC,
+    DUO
+}
+
+enum class GodType {
+    ZEUS,
+    APHRODITE,
+    ARES,
+    ATHENA,
+    HERMES,
+    DEMETER,
+    HADES
+}
+
 enum class Direction {
     UP, DOWN, LEFT, RIGHT,
     UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT

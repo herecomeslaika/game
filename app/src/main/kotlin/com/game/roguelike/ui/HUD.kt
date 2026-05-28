@@ -5,7 +5,9 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import com.game.roguelike.blessing.Blessing
+import com.game.roguelike.core.BlessingRarity
 import com.game.roguelike.core.BlessingType
+import com.game.roguelike.core.GodType
 import com.game.roguelike.entity.Player
 
 class HUD {
@@ -62,25 +64,26 @@ class HUD {
         paint.textSize = 12f
         canvas.drawText("$layerName - 第${roomIndex + 1}间", hudX, hudY + 55f, paint)
 
-        // Blessing icons
+        // Blessing icons (god-colored)
         var bx = hudX
         val by = hudY + 65f
         paint.textSize = 10f
         for (blessing in blessings) {
-            paint.color = when (blessing.type) {
-                BlessingType.ATTACK -> Color.parseColor("#FF4444")
-                BlessingType.SPECIAL -> Color.parseColor("#4488FF")
-                BlessingType.DASH -> Color.parseColor("#44FF88")
-                BlessingType.SUPPORT -> Color.parseColor("#FFAA44")
-            }
+            paint.color = godColor(blessing.god)
             canvas.drawCircle(bx + 8f, by, 8f, paint)
-            paint.color = Color.WHITE
-            val icon = when (blessing.type) {
-                BlessingType.ATTACK -> "攻"
-                BlessingType.SPECIAL -> "技"
-                BlessingType.DASH -> "冲"
-                BlessingType.SUPPORT -> "援"
+
+            // Duo star
+            if (blessing.rarity == BlessingRarity.DUO) {
+                paint.color = Color.parseColor("#FFD700")
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2f
+                canvas.drawCircle(bx + 8f, by, 12f, paint)
+                paint.style = Paint.Style.FILL
+                paint.strokeWidth = 1f
             }
+
+            paint.color = Color.WHITE
+            val icon = godIcon(blessing.god)
             canvas.drawText(icon, bx + 4f, by + 4f, paint)
             bx += 22f
         }
@@ -103,7 +106,6 @@ class HUD {
 
         // Dash CD
         if (player.dashCooldownTimer > 0) {
-            paint.color = Color.argb(150, 100, 255, 100)
             val ratio = player.dashCooldownTimer / player.dashCooldown
             canvas.drawRoundRect(RectF(cdX, cdY + 15f, cdX + 60f, cdY + 25f), 3f, 3f, bgPaint)
             paint.color = Color.argb(200, 80, 220, 80)
@@ -116,7 +118,39 @@ class HUD {
         // Athena shield indicator
         if (player.athenaShieldActive) {
             paint.color = Color.parseColor("#FFAA44")
-            canvas.drawText("雅典娜之盾 激活", cdX, cdY + 40f, paint)
+            canvas.drawText("神盾 激活", cdX, cdY + 40f, paint)
         }
+
+        // Crit indicator
+        if (player.critChance > 0f) {
+            paint.color = Color.parseColor("#FF44AA")
+            canvas.drawText("暴击${(player.critChance * 100).toInt()}%", cdX, cdY + 55f, paint)
+        }
+
+        // Slow indicator
+        if (player.slowOnHit > 0f) {
+            paint.color = Color.parseColor("#88CCFF")
+            canvas.drawText("冰霜", cdX, cdY + 70f, paint)
+        }
+    }
+
+    private fun godColor(god: GodType): Int = when (god) {
+        GodType.ZEUS -> Color.parseColor("#44AAFF")
+        GodType.APHRODITE -> Color.parseColor("#FF4488")
+        GodType.ARES -> Color.parseColor("#FF4444")
+        GodType.ATHENA -> Color.parseColor("#FFAA44")
+        GodType.HERMES -> Color.parseColor("#44FF88")
+        GodType.DEMETER -> Color.parseColor("#88CCFF")
+        GodType.HADES -> Color.parseColor("#AA44FF")
+    }
+
+    private fun godIcon(god: GodType): String = when (god) {
+        GodType.ZEUS -> "雷"
+        GodType.APHRODITE -> "心"
+        GodType.ARES -> "战"
+        GodType.ATHENA -> "盾"
+        GodType.HERMES -> "速"
+        GodType.DEMETER -> "冰"
+        GodType.HADES -> "冥"
     }
 }

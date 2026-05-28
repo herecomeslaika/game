@@ -2,6 +2,7 @@ package com.game.roguelike.entity
 
 import android.graphics.Canvas
 import com.game.roguelike.core.Game
+import com.game.roguelike.core.GodType
 import com.game.roguelike.core.PlayerState
 import com.game.roguelike.rendering.IsometricRenderer
 import com.game.roguelike.util.StateMachine
@@ -10,6 +11,7 @@ import com.game.roguelike.combat.Projectile
 import com.game.roguelike.combat.ProjectileType
 import com.game.roguelike.level.Room
 import kotlin.math.abs
+import kotlin.random.Random
 
 class Player : Entity() {
 
@@ -56,6 +58,42 @@ class Player : Entity() {
     var warCryTimer = 0f
     var warCryDamageBonus = 0f
 
+    // === New blessing stats ===
+    var critChance = 0f
+    var critMultiplier = 2f
+    var attackRangeBonus = 0f
+    var slowOnHit = 0f
+    var freezeDuration = 0f
+    var freezeDamageMultiplier = 1f
+    var lowHpDamageMultiplier = 1f
+    var bossDamageBonus = 0f
+    var killHealAmount = 0f
+    var dashInvincibleExtension = 0f
+    var dashSpeedBoostTimer = 0f
+    var dashSpeedBoostDuration = 0f
+    var dashSlowNearby = 0f
+    var lightningBounce = false
+    var critHealAmount = 0f
+    var allDamageBonus = 0f
+    var comboAlwaysCrit = false
+    var supportFreeze = false
+    var hasSummon = false
+
+    // Duo blessing flags
+    var duoHeartLightning = false
+    var duoThunderShield = false
+    var duoBloodHeart = false
+    var duoSpeedShield = false
+    var duoIceBlood = false
+    var duoDeathLove = false
+    var duoJudgement = false
+
+    // God affinity tracking
+    val ownedGods = mutableSetOf<GodType>()
+
+    // Shield invincibility extension from EPIC athena
+    var shieldInvincibleDuration = 0f
+
     // Combo state
     var comboStep = 0
         private set
@@ -84,7 +122,6 @@ class Player : Entity() {
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
     var idleTime = 0f
-    // Smooth transition blend: 0 = idle pose, 1 = full walk animation
     var walkBlend = 0f
 
     val stateMachine = StateMachine(PlayerState.IDLE)
@@ -101,30 +138,34 @@ class Player : Entity() {
         moveAnimPhase = 0f
         idleTime = 0f
         stateMachine.transitionTo(PlayerState.IDLE)
-        attackDamage1 = 8f
-        attackDamage2 = 10f
-        attackDamage3 = 15f
-        attackSpeedMultiplier = 1f
-        comboSplashRadius = 0f
-        specialDamage = 12f
-        specialCooldown = 0.8f
-        knifeCount = 1
-        knifePierce = false
-        knifeExplosive = false
-        dashSpeed = 700f
-        dashDuration = 0.15f
-        dashCooldown = 0.5f
-        dashDamage = 0f
-        dashTrailDamage = 0f
-        supportCooldown = 8f
-        athenaShieldActive = false
-        warCryDamageBonus = 0f
+
+        // Reset all stats
+        attackDamage1 = 8f; attackDamage2 = 10f; attackDamage3 = 15f
+        attackSpeedMultiplier = 1f; comboSplashRadius = 0f
+        specialDamage = 12f; specialCooldown = 0.8f
+        knifeCount = 1; knifePierce = false; knifeExplosive = false
+        dashSpeed = 700f; dashDuration = 0.15f; dashCooldown = 0.5f
+        dashDamage = 0f; dashTrailDamage = 0f
+        supportCooldown = 8f; athenaShieldActive = false; warCryDamageBonus = 0f
+
+        // Reset new blessing stats
+        critChance = 0f; critMultiplier = 2f; attackRangeBonus = 0f
+        slowOnHit = 0f; freezeDuration = 0f; freezeDamageMultiplier = 1f
+        lowHpDamageMultiplier = 1f; bossDamageBonus = 0f; killHealAmount = 0f
+        dashInvincibleExtension = 0f; dashSpeedBoostDuration = 0f; dashSlowNearby = 0f
+        lightningBounce = false; critHealAmount = 0f; allDamageBonus = 0f
+        comboAlwaysCrit = false; supportFreeze = false; hasSummon = false
+        duoHeartLightning = false; duoThunderShield = false; duoBloodHeart = false
+        duoSpeedShield = false; duoIceBlood = false; duoDeathLove = false; duoJudgement = false
+        ownedGods.clear()
+        shieldInvincibleDuration = 0f
     }
 
     override fun update(dt: Float, game: Game) {
         stateMachine.update(dt)
         updateCooldowns(dt)
         updateWarCry(dt)
+        updateDashSpeedBoost(dt)
 
         when (stateMachine.currentState) {
             PlayerState.IDLE -> updateIdle(dt, game)
@@ -139,14 +180,11 @@ class Player : Entity() {
             else -> {}
         }
 
-        // Decrement combo timer when not attacking
         if (comboTimer > 0 && stateMachine.currentState != PlayerState.ATTACK1
             && stateMachine.currentState != PlayerState.ATTACK2
             && stateMachine.currentState != PlayerState.ATTACK3) {
             comboTimer -= dt
-            if (comboTimer <= 0) {
-                comboStep = 0
-            }
+            if (comboTimer <= 0) comboStep = 0
         }
 
         clampToRoom(game.currentRoom)
@@ -175,14 +213,17 @@ class Player : Entity() {
         }
     }
 
+    private fun updateDashSpeedBoost(dt: Float) {
+        if (dashSpeedBoostTimer > 0) {
+            dashSpeedBoostTimer -= dt
+        }
+    }
+
     private fun updateIdle(dt: Float, game: Game) {
         val input = game.inputManager ?: return
         velocity = Vector2.ZERO
-        // Smoothly fade out walk animation instead of hard reset
         walkBlend = maxOf(0f, walkBlend - dt * 5f)
-        if (moveAnimTime > 0f) {
-            moveAnimTime = maxOf(0f, moveAnimTime - dt * 3f)
-        }
+        if (moveAnimTime > 0f) moveAnimTime = maxOf(0f, moveAnimTime - dt * 3f)
         idleTime += dt
         if (input.joystickDirection.magnitude > 0.1f) {
             idleTime = 0f
@@ -192,9 +233,7 @@ class Player : Entity() {
 
     private fun updateRun(dt: Float, game: Game) {
         val input = game.inputManager ?: return
-        // Smoothly blend in walk animation
         walkBlend = minOf(1f, walkBlend + dt * 6f)
-        // Advance walk cycle continuously
         moveAnimTime += dt
         moveAnimPhase = moveAnimTime * 4f
 
@@ -206,17 +245,16 @@ class Player : Entity() {
             val worldDY = -moveDir.x / tw + moveDir.y / th
             val worldDir = Vector2(worldDX, worldDY).normalized
 
-            velocity.x += (worldDir.x * speed - velocity.x) * 12f * dt
-            velocity.y += (worldDir.y * speed - velocity.y) * 12f * dt
+            val effectiveSpeed = if (dashSpeedBoostTimer > 0) speed * 1f else speed
+            velocity.x += (worldDir.x * effectiveSpeed - velocity.x) * 12f * dt
+            velocity.y += (worldDir.y * effectiveSpeed - velocity.y) * 12f * dt
 
             position.x += velocity.x * dt
             position.y += velocity.y * dt
 
-            // Only update facing when there's active joystick input
             if (worldDir.x > 0.15f) facingRight = true
             else if (worldDir.x < -0.15f) facingRight = false
         } else {
-            // Decelerate smoothly, lock facing during deceleration
             walkBlend = maxOf(0f, walkBlend - dt * 4f)
             velocity.x += (0f - velocity.x) * 10f * dt
             velocity.y += (0f - velocity.y) * 10f * dt
@@ -224,7 +262,6 @@ class Player : Entity() {
                 velocity = Vector2.ZERO
                 stateMachine.transitionTo(PlayerState.IDLE)
             } else {
-                // Still moving from deceleration, apply position change
                 position.x += velocity.x * dt
                 position.y += velocity.y * dt
             }
@@ -233,21 +270,22 @@ class Player : Entity() {
 
     internal fun startAttack1(game: Game) {
         comboStep = 1
-        attackTimer = 0.15f / attackSpeedMultiplier
-        isAttacking1 = true
-        isAttacking2 = false
-        isAttacking3 = false
+        val speedMult = if (dashSpeedBoostTimer > 0) attackSpeedMultiplier * 1.5f else attackSpeedMultiplier
+        attackTimer = 0.15f / speedMult
+        isAttacking1 = true; isAttacking2 = false; isAttacking3 = false
         stateMachine.transitionTo(PlayerState.ATTACK1)
 
-        // Lunge towards nearest enemy
         lungeTowardEnemy(game, 40f)
-        dealDamageToEnemies(game, attackDamage1 + warCryDamageBonus, 50f)
-        game.shake(3f, 0.08f)
+        val isCrit = comboAlwaysCrit && comboStep == 3 || rollCrit()
+        var dmg = attackDamage1 + warCryDamageBonus + allDamageBonus
+        if (isCrit) dmg *= critMultiplier
+        dmg = applyConditionalDamage(dmg, game)
+        dealDamageToEnemies(game, dmg, 50f + attackRangeBonus, isCrit)
+        game.shake(if (isCrit) 5f else 3f, 0.08f)
     }
 
     private fun updateAttack1(dt: Float, game: Game) {
         attackTimer -= dt
-        // Allow slight movement toward enemy during attack
         applyAttackDrift(dt, game)
         if (attackTimer <= 0) {
             isAttacking1 = false
@@ -258,15 +296,18 @@ class Player : Entity() {
 
     internal fun startAttack2(game: Game) {
         comboStep = 2
-        attackTimer = 0.15f / attackSpeedMultiplier
-        isAttacking1 = false
-        isAttacking2 = true
-        isAttacking3 = false
+        val speedMult = if (dashSpeedBoostTimer > 0) attackSpeedMultiplier * 1.5f else attackSpeedMultiplier
+        attackTimer = 0.15f / speedMult
+        isAttacking1 = false; isAttacking2 = true; isAttacking3 = false
         stateMachine.transitionTo(PlayerState.ATTACK2)
 
         lungeTowardEnemy(game, 45f)
-        dealDamageToEnemies(game, attackDamage2 + warCryDamageBonus, 55f)
-        game.shake(4f, 0.1f)
+        val isCrit = comboAlwaysCrit && comboStep == 3 || rollCrit()
+        var dmg = attackDamage2 + warCryDamageBonus + allDamageBonus
+        if (isCrit) dmg *= critMultiplier
+        dmg = applyConditionalDamage(dmg, game)
+        dealDamageToEnemies(game, dmg, 55f + attackRangeBonus, isCrit)
+        game.shake(if (isCrit) 6f else 4f, 0.1f)
     }
 
     private fun updateAttack2(dt: Float, game: Game) {
@@ -281,15 +322,18 @@ class Player : Entity() {
 
     internal fun startAttack3(game: Game) {
         comboStep = 3
-        attackTimer = 0.2f / attackSpeedMultiplier
-        isAttacking1 = false
-        isAttacking2 = false
-        isAttacking3 = true
+        val speedMult = if (dashSpeedBoostTimer > 0) attackSpeedMultiplier * 1.5f else attackSpeedMultiplier
+        attackTimer = 0.2f / speedMult
+        isAttacking1 = false; isAttacking2 = false; isAttacking3 = true
         stateMachine.transitionTo(PlayerState.ATTACK3)
 
         lungeTowardEnemy(game, 55f)
-        dealDamageToEnemies(game, attackDamage3 + warCryDamageBonus, 70f)
-        game.shake(6f, 0.12f)
+        val isCrit = comboAlwaysCrit || rollCrit()
+        var dmg = attackDamage3 + warCryDamageBonus + allDamageBonus
+        if (isCrit) dmg *= critMultiplier
+        dmg = applyConditionalDamage(dmg, game)
+        dealDamageToEnemies(game, dmg, 70f + attackRangeBonus, isCrit)
+        game.shake(if (isCrit) 8f else 6f, 0.12f)
     }
 
     private fun updateAttack3(dt: Float, game: Game) {
@@ -303,31 +347,40 @@ class Player : Entity() {
         }
     }
 
-    // Lunge toward nearest enemy on attack start
     private fun lungeTowardEnemy(game: Game, lungeDist: Float) {
         val nearest = findNearestEnemy(game) ?: return
         val dir = (nearest.position - position).normalized
         position.x += dir.x * lungeDist
         position.y += dir.y * lungeDist
-        // Only change facing on meaningful horizontal direction
         if (dir.x > 0.2f) facingRight = true
         else if (dir.x < -0.2f) facingRight = false
     }
 
-    // Slight drift toward enemy during attack animation
     private fun applyAttackDrift(dt: Float, game: Game) {
         val nearest = findNearestEnemy(game) ?: return
         val dist = position.distanceTo(nearest.position)
         if (dist > 40f) {
             val dir = (nearest.position - position).normalized
-            val driftSpeed = 120f
-            position.x += dir.x * driftSpeed * dt
-            position.y += dir.y * driftSpeed * dt
+            position.x += dir.x * 120f * dt
+            position.y += dir.y * 120f * dt
         }
     }
 
-    private fun findNearestEnemy(game: Game): com.game.roguelike.entity.Enemy? {
+    private fun findNearestEnemy(game: Game): Enemy? {
         return game.enemies.filter { !it.isDead }.minByOrNull { it.position.distanceTo(position) }
+    }
+
+    /** Roll for critical hit */
+    private fun rollCrit(): Boolean {
+        val chance = if (duoDeathLove && health < maxHealth * 0.3f) 1f else critChance
+        return Random.nextFloat() < chance
+    }
+
+    /** Apply conditional damage modifiers (low HP, boss, etc.) */
+    private fun applyConditionalDamage(damage: Float, game: Game): Float {
+        var dmg = damage
+        if (health < maxHealth * 0.3f) dmg *= lowHpDamageMultiplier
+        return dmg
     }
 
     internal fun startSpecial(game: Game) {
@@ -336,7 +389,6 @@ class Player : Entity() {
         specialCooldownTimer = specialCooldown
         stateMachine.transitionTo(PlayerState.SPECIAL)
 
-        // Auto-lock: find nearest enemy, otherwise use facing direction
         val nearest = findNearestEnemy(game)
         val baseDirection = if (nearest != null) {
             (nearest.position - position).normalized
@@ -352,7 +404,7 @@ class Player : Entity() {
             val knife = Projectile(
                 position = Vector2(position.x + knifeDir.x * 15f, position.y + knifeDir.y * 15f),
                 velocity = knifeDir * 500f,
-                damage = specialDamage + warCryDamageBonus,
+                damage = specialDamage + allDamageBonus,
                 type = ProjectileType.KNIFE,
                 maxRange = 500f,
                 pierce = knifePierce,
@@ -388,6 +440,16 @@ class Player : Entity() {
             Vector2(worldDX, worldDY).normalized
         } else Vector2.fromAngle(if (facingRight) 0f else 3.14159f)
 
+        // Duo speed shield: auto-block during dash
+        if (duoSpeedShield) {
+            athenaShieldActive = true
+        }
+
+        // Dash speed boost after
+        if (dashSpeedBoostDuration > 0) {
+            dashSpeedBoostTimer = 2f
+        }
+
         stateMachine.transitionTo(PlayerState.DASH)
     }
 
@@ -396,16 +458,25 @@ class Player : Entity() {
         position.x += dashDirection.x * dashSpeed * dt
         position.y += dashDirection.y * dashSpeed * dt
 
-        if (dashTrailDamage > 0) {
-            dealDamageToEnemies(game, dashTrailDamage, 30f)
-        }
-        if (dashDamage > 0) {
-            dealDamageToEnemies(game, dashDamage, 35f)
+        if (dashTrailDamage > 0) dealDamageToEnemies(game, dashTrailDamage, 30f)
+        if (dashDamage > 0) dealDamageToEnemies(game, dashDamage, 35f)
+
+        // Dash slow nearby enemies
+        if (dashSlowNearby > 0) {
+            for (enemy in game.enemies) {
+                if (!enemy.isDead && enemy.position.distanceTo(position) < 80f) {
+                    enemy.slowTimer = dashSlowNearby
+                }
+            }
         }
 
         if (dashTimer <= 0) {
             isDashing = false
             isDashInvincible = false
+            // Extend invincibility from reflect dash
+            if (dashInvincibleExtension > 0) {
+                invincibleTimer = dashInvincibleExtension
+            }
             stateMachine.transitionTo(PlayerState.IDLE)
         }
     }
@@ -425,6 +496,20 @@ class Player : Entity() {
             athenaShieldActive = false
             athenaShieldTimer = athenaShieldCooldown
             game.shake(2f, 0.1f)
+
+            // Duo thunder shield: release lightning when blocking
+            if (duoThunderShield) {
+                for (enemy in game.enemies) {
+                    if (!enemy.isDead && enemy.position.distanceTo(position) < 120f) {
+                        enemy.takeDamage(20f, game)
+                    }
+                }
+            }
+
+            // EPIC athena: invincible after block
+            if (shieldInvincibleDuration > 0) {
+                invincibleTimer = shieldInvincibleDuration
+            }
             return
         }
 
@@ -450,7 +535,7 @@ class Player : Entity() {
         }
     }
 
-    private fun dealDamageToEnemies(game: Game, damage: Float, range: Float) {
+    private fun dealDamageToEnemies(game: Game, damage: Float, range: Float, isCrit: Boolean = false) {
         val hitCenter = Vector2(
             position.x + (if (facingRight) 1 else -1) * range / 2,
             position.y
@@ -460,18 +545,82 @@ class Player : Entity() {
             if (enemy.isDead) continue
             val dist = enemy.position.distanceTo(hitCenter)
             if (dist < range) {
-                enemy.takeDamage(damage, game)
+                // Apply boss damage bonus
+                var finalDmg = damage
+                if (enemy.isBoss && bossDamageBonus > 0) finalDmg *= (1f + bossDamageBonus)
+
+                // Apply freeze damage multiplier
+                if (enemy.freezeTimer > 0 && freezeDamageMultiplier > 1f) {
+                    finalDmg *= freezeDamageMultiplier
+                }
+
+                // Duo ice blood: slowed enemies take 1.5x
+                if (duoIceBlood && enemy.slowTimer > 0) {
+                    finalDmg *= 1.5f
+                }
+
+                enemy.takeDamage(finalDmg, game)
+
+                // Slow on hit (Demeter)
+                if (slowOnHit > 0) {
+                    enemy.slowTimer = slowOnHit
+                }
+
+                // Lightning bounce (Zeus)
+                if (lightningBounce) {
+                    val nearby = game.enemies.filter {
+                        !it.isDead && it !== enemy && it.position.distanceTo(enemy.position) < 100f
+                    }
+                    if (nearby.isNotEmpty()) {
+                        nearby[0].takeDamage(damage * 0.5f, game)
+                    }
+                }
+
+                // Duo heart lightning: crit chains lightning to ALL nearby
+                if (isCrit && duoHeartLightning) {
+                    for (other in game.enemies) {
+                        if (other.isDead || other === enemy) continue
+                        if (other.position.distanceTo(enemy.position) < 150f) {
+                            other.takeDamage(damage * 0.6f, game)
+                        }
+                    }
+                }
+
+                // Crit heal
+                if (isCrit && critHealAmount > 0) {
+                    health = (health + critHealAmount.toInt()).coerceAtMost(maxHealth)
+                }
+                // Duo blood heart: crit heals 10 + bonus damage
+                if (isCrit && duoBloodHeart) {
+                    health = (health + 10).coerceAtMost(maxHealth)
+                }
+
+                // Combo splash
                 if (comboSplashRadius > 0) {
                     for (other in game.enemies) {
                         if (other === enemy || other.isDead) continue
                         if (other.position.distanceTo(enemy.position) < comboSplashRadius) {
-                            other.takeDamage(damage * 0.5f, game)
+                            other.takeDamage(finalDmg * 0.5f, game)
                         }
                     }
                 }
+
+                // War cry on kill
                 if (enemy.isDead && warCryDamageBonus > 0) {
                     warCryActive = true
                     warCryTimer = 5f
+                }
+
+                // Kill heal
+                if (enemy.isDead && killHealAmount > 0) {
+                    health = (health + killHealAmount.toInt()).coerceAtMost(maxHealth)
+                }
+
+                // Duo judgement: boss kill lightning screen
+                if (enemy.isDead && enemy.isBoss && duoJudgement) {
+                    for (other in game.enemies) {
+                        if (!other.isDead) other.takeDamage(30f, game)
+                    }
                 }
             }
         }
@@ -510,15 +659,11 @@ class Player : Entity() {
         val worldW = room.width * tw
         val worldH = room.height * th
 
-        // Walls in isometric view extend outward from their grid position.
-        // Left/bottom walls have visible faces that extend into the room,
-        // so we need larger margins on the left and bottom edges.
-        val leftMargin = tw      // left wall extends one tile width into room
-        val topMargin = th       // top wall extends one tile height into room
-        val rightMargin = tw     // right wall extends one tile width into room
-        val bottomMargin = th    // bottom wall extends one tile height into room
+        val leftMargin = tw
+        val topMargin = th
+        val rightMargin = tw
+        val bottomMargin = th
 
-        // Also check obstacle tiles and push player away from them
         val gridX = (position.x / tw).toInt().coerceIn(0, room.width - 1)
         val gridY = (position.y / th).toInt().coerceIn(0, room.height - 1)
 
@@ -538,7 +683,6 @@ class Player : Entity() {
                     if (position.x > tileMinX - pushMargin && position.x < tileMaxX + pushMargin &&
                         position.y > tileMinY - pushMargin && position.y < tileMaxY + pushMargin
                     ) {
-                        // Push out from obstacle center
                         val cx = tileMinX + tw / 2f
                         val cy = tileMinY + th / 2f
                         val dx2 = position.x - cx
@@ -557,7 +701,6 @@ class Player : Entity() {
             }
         }
 
-        // Final boundary clamp with isometric wall margins
         position.x = position.x.coerceIn(leftMargin, worldW - rightMargin)
         position.y = position.y.coerceIn(topMargin, worldH - bottomMargin)
     }

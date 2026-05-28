@@ -157,6 +157,17 @@ class Enemy(
     // Hurt
     var hurtTimer = 0f
 
+    // Slow/Freeze from Demeter blessings
+    var slowTimer = 0f
+    var freezeTimer = 0f
+
+    /** Get effective speed considering slow/freeze */
+    fun effectiveSpeed(base: Float): Float {
+        if (freezeTimer > 0) return 0f
+        if (slowTimer > 0) return base * 0.4f
+        return base
+    }
+
     init {
         position = Vector2(spawnPos.x, spawnPos.y)
         configure()
@@ -488,8 +499,8 @@ class Enemy(
         val dir = patrolTarget - position
         if (dir.magnitude > 5f) {
             val norm = dir.normalized
-            position.x += norm.x * speed * 0.3f * dt
-            position.y += norm.y * speed * 0.3f * dt
+            position.x += norm.x * effectiveSpeed(speed) * 0.3f * dt
+            position.y += norm.y * effectiveSpeed(speed) * 0.3f * dt
             if (abs(norm.x) > 0.3f) facingRight = norm.x > 0
         } else {
             stateMachine.transitionTo(EnemyState.IDLE)
