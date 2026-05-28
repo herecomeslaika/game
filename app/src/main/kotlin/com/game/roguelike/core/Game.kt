@@ -132,7 +132,7 @@ class Game(private val context: Context) {
         // Process attack input
         if (input.consumeAttack()) {
             // Check merchant interaction first
-            val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer(player) } == true
+            val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer } == true
             if (nearMerchant) {
                 merchant!!.talked = true
                 shop.open(gold)
@@ -168,6 +168,9 @@ class Game(private val context: Context) {
 
         // Player update
         player.update(dt, this)
+
+        // Merchant update
+        merchant?.update(dt, this)
 
         // Enemy updates - copy list to avoid ConcurrentModificationException
         // (enemy update can add new enemies via summoning)
