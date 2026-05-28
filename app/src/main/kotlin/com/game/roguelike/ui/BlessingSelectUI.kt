@@ -7,6 +7,9 @@ import android.graphics.Path
 import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.core.BlessingRarity
 import com.game.roguelike.core.GodType
+import com.game.roguelike.core.color
+import com.game.roguelike.core.icon
+import com.game.roguelike.core.displayName
 
 class BlessingSelectUI {
     private var w = 1920f
@@ -118,8 +121,8 @@ class BlessingSelectUI {
         paint.style = Paint.Style.FILL
 
         // God symbol circle
-        val godColor = godColor(blessing.god)
-        typePaint.color = godColor
+        val godClr = blessing.god.color
+        typePaint.color = godClr
         canvas.drawCircle(x + cardWidth / 2f, y + 100f, 35f, typePaint)
 
         // God icon in circle
@@ -127,12 +130,12 @@ class BlessingSelectUI {
         paint.textSize = 22f
         paint.textAlign = Paint.Align.CENTER
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        canvas.drawText(godIcon(blessing.god), x + cardWidth / 2f, y + 107f, paint)
+        canvas.drawText(blessing.god.icon, x + cardWidth / 2f, y + 107f, paint)
 
         // God name
-        typePaint.color = godColor
+        typePaint.color = godClr
         typePaint.textSize = 16f
-        canvas.drawText(godName(blessing.god), x + cardWidth / 2f, y + 40f, typePaint)
+        canvas.drawText(blessing.god.displayName, x + cardWidth / 2f, y + 40f, typePaint)
 
         // Rarity label
         val rarityText = when (blessing.rarity) {
@@ -149,7 +152,7 @@ class BlessingSelectUI {
             val (g1, g2) = blessing.duoPair!!
             typePaint.textSize = 12f
             typePaint.color = Color.argb(180, 255, 215, 0)
-            canvas.drawText("${godName(g1)} + ${godName(g2)}", x + cardWidth / 2f, y + 175f, typePaint)
+            canvas.drawText("${g1.displayName} + ${g2.displayName}", x + cardWidth / 2f, y + 175f, typePaint)
             typePaint.textSize = 16f
         }
 
@@ -188,33 +191,4 @@ class BlessingSelectUI {
         return null
     }
 
-    private fun godColor(god: GodType): Int = when (god) {
-        GodType.ZEUS -> Color.parseColor("#44AAFF")
-        GodType.APHRODITE -> Color.parseColor("#FF4488")
-        GodType.ARES -> Color.parseColor("#FF4444")
-        GodType.ATHENA -> Color.parseColor("#FFAA44")
-        GodType.HERMES -> Color.parseColor("#44FF88")
-        GodType.DEMETER -> Color.parseColor("#88CCFF")
-        GodType.HADES -> Color.parseColor("#AA44FF")
-    }
-
-    private fun godIcon(god: GodType): String = when (god) {
-        GodType.ZEUS -> "⚡"
-        GodType.APHRODITE -> "♥"
-        GodType.ARES -> "⚔"
-        GodType.ATHENA -> "◆"
-        GodType.HERMES -> "→"
-        GodType.DEMETER -> "❆"
-        GodType.HADES -> "☠"
-    }
-
-    private fun godName(god: GodType): String = when (god) {
-        GodType.ZEUS -> "宙斯"
-        GodType.APHRODITE -> "阿佛洛狄忒"
-        GodType.ARES -> "阿瑞斯"
-        GodType.ATHENA -> "雅典娜"
-        GodType.HERMES -> "赫尔墨斯"
-        GodType.DEMETER -> "得墨忒耳"
-        GodType.HADES -> "哈迪斯"
-    }
 }

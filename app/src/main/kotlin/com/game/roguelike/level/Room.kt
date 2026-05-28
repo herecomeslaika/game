@@ -7,8 +7,8 @@ import com.game.roguelike.util.Vector2
 import kotlin.random.Random
 
 class Room(
-    val width: Int = 20,
-    val height: Int = 14,
+    val width: Int = 28,
+    val height: Int = 20,
     val type: RoomType,
     val layerIndex: Int = 0,
     var roomId: Int = -1

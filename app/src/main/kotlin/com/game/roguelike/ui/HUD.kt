@@ -6,8 +6,9 @@ import android.graphics.Paint
 import android.graphics.RectF
 import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.core.BlessingRarity
-import com.game.roguelike.core.BlessingType
 import com.game.roguelike.core.GodType
+import com.game.roguelike.core.color
+import com.game.roguelike.core.icon
 import com.game.roguelike.entity.Player
 
 class HUD {
@@ -69,7 +70,7 @@ class HUD {
         val by = hudY + 65f
         paint.textSize = 10f
         for (blessing in blessings) {
-            paint.color = godColor(blessing.god)
+            paint.color = blessing.god.color
             canvas.drawCircle(bx + 8f, by, 8f, paint)
 
             // Duo star
@@ -83,7 +84,7 @@ class HUD {
             }
 
             paint.color = Color.WHITE
-            val icon = godIcon(blessing.god)
+            val icon = blessing.god.icon
             canvas.drawText(icon, bx + 4f, by + 4f, paint)
             bx += 22f
         }
@@ -134,23 +135,4 @@ class HUD {
         }
     }
 
-    private fun godColor(god: GodType): Int = when (god) {
-        GodType.ZEUS -> Color.parseColor("#44AAFF")
-        GodType.APHRODITE -> Color.parseColor("#FF4488")
-        GodType.ARES -> Color.parseColor("#FF4444")
-        GodType.ATHENA -> Color.parseColor("#FFAA44")
-        GodType.HERMES -> Color.parseColor("#44FF88")
-        GodType.DEMETER -> Color.parseColor("#88CCFF")
-        GodType.HADES -> Color.parseColor("#AA44FF")
-    }
-
-    private fun godIcon(god: GodType): String = when (god) {
-        GodType.ZEUS -> "雷"
-        GodType.APHRODITE -> "心"
-        GodType.ARES -> "战"
-        GodType.ATHENA -> "盾"
-        GodType.HERMES -> "速"
-        GodType.DEMETER -> "冰"
-        GodType.HADES -> "冥"
-    }
 }

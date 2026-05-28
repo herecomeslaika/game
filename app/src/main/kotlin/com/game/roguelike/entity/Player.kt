@@ -36,9 +36,7 @@ class Player : Entity() {
     var specialDamage = 12f
     var specialCooldown = 0.8f
     var specialCooldownTimer = 0f
-    var knifeCount = 1
     var knifePierce = false
-    var knifeExplosive = false
 
     // Dash stats
     var dashSpeed = 700f
@@ -51,48 +49,47 @@ class Player : Entity() {
     // Support
     var supportCooldown = 8f
     var supportCooldownTimer = 0f
-    var athenaShieldActive = false
-    var athenaShieldCooldown = 10f
     var athenaShieldTimer = 0f
     var warCryActive = false
     var warCryTimer = 0f
-    var warCryDamageBonus = 0f
 
-    // === New blessing stats ===
-    var critChance = 0f
-    var critMultiplier = 2f
-    var attackRangeBonus = 0f
-    var slowOnHit = 0f
-    var freezeDuration = 0f
-    var freezeDamageMultiplier = 1f
-    var lowHpDamageMultiplier = 1f
-    var bossDamageBonus = 0f
-    var killHealAmount = 0f
-    var dashInvincibleExtension = 0f
+    // Blessing effects — delegated for backward compatibility
+    val blessingEffects = BlessingEffects()
+    var critChance by blessingEffects::critChance
+    var critMultiplier by blessingEffects::critMultiplier
+    var attackRangeBonus by blessingEffects::attackRangeBonus
+    var slowOnHit by blessingEffects::slowOnHit
+    var freezeDuration by blessingEffects::freezeDuration
+    var freezeDamageMultiplier by blessingEffects::freezeDamageMultiplier
+    var lowHpDamageMultiplier by blessingEffects::lowHpDamageMultiplier
+    var bossDamageBonus by blessingEffects::bossDamageBonus
+    var killHealAmount by blessingEffects::killHealAmount
+    var dashInvincibleExtension by blessingEffects::dashInvincibleExtension
     var dashSpeedBoostTimer = 0f
-    var dashSpeedBoostDuration = 0f
-    var dashSlowNearby = 0f
-    var lightningBounce = false
-    var critHealAmount = 0f
-    var allDamageBonus = 0f
-    var comboAlwaysCrit = false
-    var supportFreeze = false
-    var hasSummon = false
-
-    // Duo blessing flags
-    var duoHeartLightning = false
-    var duoThunderShield = false
-    var duoBloodHeart = false
-    var duoSpeedShield = false
-    var duoIceBlood = false
-    var duoDeathLove = false
-    var duoJudgement = false
+    var dashSpeedBoostDuration by blessingEffects::dashSpeedBoostDuration
+    var dashSlowNearby by blessingEffects::dashSlowNearby
+    var lightningBounce by blessingEffects::lightningBounce
+    var critHealAmount by blessingEffects::critHealAmount
+    var allDamageBonus by blessingEffects::allDamageBonus
+    var comboAlwaysCrit by blessingEffects::comboAlwaysCrit
+    var supportFreeze by blessingEffects::supportFreeze
+    var hasSummon by blessingEffects::hasSummon
+    var knifeCount by blessingEffects::knifeCount
+    var knifeExplosive by blessingEffects::knifeExplosive
+    var warCryDamageBonus by blessingEffects::warCryDamageBonus
+    var athenaShieldActive by blessingEffects::athenaShieldActive
+    var athenaShieldCooldown by blessingEffects::athenaShieldCooldown
+    var shieldInvincibleDuration by blessingEffects::shieldInvincibleDuration
+    var duoHeartLightning by blessingEffects::duoHeartLightning
+    var duoThunderShield by blessingEffects::duoThunderShield
+    var duoBloodHeart by blessingEffects::duoBloodHeart
+    var duoSpeedShield by blessingEffects::duoSpeedShield
+    var duoIceBlood by blessingEffects::duoIceBlood
+    var duoDeathLove by blessingEffects::duoDeathLove
+    var duoJudgement by blessingEffects::duoJudgement
 
     // God affinity tracking
     val ownedGods = mutableSetOf<GodType>()
-
-    // Shield invincibility extension from EPIC athena
-    var shieldInvincibleDuration = 0f
 
     // Combo state
     var comboStep = 0

@@ -143,16 +143,16 @@ object DungeonGenerator {
 
     fun generateRoomFromNode(node: RoomNode, floorNum: Int): Room {
         val width = when (node.type) {
-            RoomType.BOSS -> 20
-            RoomType.ELITE -> 16
-            RoomType.SHOP -> 14
-            else -> 12 + (0..3).random()
+            RoomType.BOSS -> 30
+            RoomType.ELITE -> 24
+            RoomType.SHOP -> 20
+            else -> 20 + (0..5).random()
         }
         val height = when (node.type) {
-            RoomType.BOSS -> 20
-            RoomType.ELITE -> 16
-            RoomType.SHOP -> 14
-            else -> 12 + (0..3).random()
+            RoomType.BOSS -> 30
+            RoomType.ELITE -> 24
+            RoomType.SHOP -> 20
+            else -> 20 + (0..5).random()
         }
 
         return Room(width, height, node.type, floorNum)
