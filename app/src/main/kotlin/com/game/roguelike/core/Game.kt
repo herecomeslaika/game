@@ -494,7 +494,7 @@ class Game(private val context: Context) {
         when (room.type) {
             RoomType.ENTRY -> {}
             RoomType.COMBAT -> room.spawnEnemies(this)
-            RoomType.ELITE -> room.spawnEnemies(this) // elite uses combat spawn but harder
+            RoomType.ELITE -> room.spawnElite(this)
             RoomType.REWARD -> {
                 gameState = GameState.BLESSING_SELECT
                 blessingSelector.generateOffering(currentLayerIndex, blessings)

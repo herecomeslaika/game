@@ -48,9 +48,9 @@ object DungeonGenerator {
         // Middle layers: branching
         for (layer in 1 until depth - 1) {
             val count = when {
-                layer <= 2 -> rng.nextInt(1, 3) // early: 1-2 rooms
+                layer <= 2 -> rng.nextInt(2, 4) // early: 2-3 rooms
                 layer >= depth - 2 -> rng.nextInt(1, 3) // late: 1-2 rooms (converge)
-                else -> rng.nextInt(2, 4) // middle: 2-3 rooms
+                else -> rng.nextInt(3, 5) // middle: 3-4 rooms
             }
 
             val layerRoomIds = mutableListOf<Int>()
@@ -143,16 +143,16 @@ object DungeonGenerator {
 
     fun generateRoomFromNode(node: RoomNode, floorNum: Int): Room {
         val width = when (node.type) {
-            RoomType.BOSS -> 30
-            RoomType.ELITE -> 24
-            RoomType.SHOP -> 20
-            else -> 20 + (0..5).random()
+            RoomType.BOSS -> 36
+            RoomType.ELITE -> 30
+            RoomType.SHOP -> 24
+            else -> 28 + (0..8).random()
         }
         val height = when (node.type) {
-            RoomType.BOSS -> 30
-            RoomType.ELITE -> 24
-            RoomType.SHOP -> 20
-            else -> 20 + (0..5).random()
+            RoomType.BOSS -> 36
+            RoomType.ELITE -> 30
+            RoomType.SHOP -> 24
+            else -> 24 + (0..8).random()
         }
 
         return Room(width, height, node.type, floorNum)

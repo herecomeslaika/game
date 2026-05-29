@@ -158,7 +158,7 @@ class Room(
     }
 
     private fun generateCombatLayout() {
-        val variant = Random.nextInt(5)
+        val variant = Random.nextInt(8)
         val cx = width / 2
         val cy = height / 2
 
@@ -207,20 +207,58 @@ class Room(
                 setTile(cx + 4, cy - 1, TILE_PILLAR)
                 setTile(cx + 4, cy + 1, TILE_PILLAR)
             }
-            else -> {
-                // Random scatter (original style)
-                val obstacleCount = Random.nextInt(2, 5)
-                for (i in 0 until obstacleCount) {
-                    val ox = Random.nextInt(2, width - 2)
-                    val oy = Random.nextInt(2, height - 2)
-                    setTile(ox, oy, TILE_OBSTACLE)
+            4 -> {
+                // Four corner fortresses
+                for (dx in 0..2) for (dy in 0..2) {
+                    setTile(2 + dx, 2 + dy, TILE_OBSTACLE)
+                    setTile(width - 3 - dx, 2 + dy, TILE_OBSTACLE)
+                    setTile(2 + dx, height - 3 - dy, TILE_OBSTACLE)
+                    setTile(width - 3 - dx, height - 3 - dy, TILE_OBSTACLE)
+                }
+            }
+            5 -> {
+                // Central block + corner pillars
+                for (dx in -1..1) for (dy in -1..1) {
+                    setTile(cx + dx, cy + dy, TILE_OBSTACLE)
+                }
+                setTile(3, 3, TILE_PILLAR)
+                setTile(width - 4, 3, TILE_PILLAR)
+                setTile(3, height - 4, TILE_PILLAR)
+                setTile(width - 4, height - 4, TILE_PILLAR)
+            }
+            6 -> {
+                // Maze walls with gaps
+                for (y in 4..height - 5 step 4) {
+                    for (x in 3..width - 4) {
+                        if (x != cx - 1 && x != cx + 1) setTile(x, y, TILE_OBSTACLE)
+                    }
+                }
+            }
+            7 -> {
+                // Arena: obstacle ring around edges with 4 entrances
+                for (x in 4..width - 5) {
+                    setTile(x, 3, TILE_OBSTACLE)
+                    setTile(x, height - 4, TILE_OBSTACLE)
+                }
+                for (y in 4..height - 5) {
+                    setTile(3, y, TILE_OBSTACLE)
+                    setTile(width - 4, y, TILE_OBSTACLE)
+                }
+                // Entrance gaps
+                for (dy in -1..1) {
+                    setTile(3, cy + dy, TILE_FLOOR)
+                    setTile(width - 4, cy + dy, TILE_FLOOR)
+                }
+                for (dx in -1..1) {
+                    setTile(cx + dx, 3, TILE_FLOOR)
+                    setTile(cx + dx, height - 4, TILE_FLOOR)
                 }
             }
         }
 
-        // Add spikes in combat rooms (small chance per tile)
-        if (Random.nextFloat() < 0.6f) {
-            val spikeCount = Random.nextInt(2, 5)
+        // Add spikes in combat rooms
+        if (Random.nextFloat() < 0.8f) {
+            val spikeCount = Random.nextInt(4, 9)
             for (i in 0 until spikeCount) {
                 val sx = Random.nextInt(3, width - 3)
                 val sy = Random.nextInt(3, height - 3)
@@ -360,10 +398,10 @@ class Room(
 
     fun spawnEnemies(game: Game) {
         val count = when (layerIndex) {
-            0 -> Random.nextInt(3, 6)
-            1 -> Random.nextInt(3, 5)
-            2 -> Random.nextInt(2, 4)
-            else -> 3
+            0 -> Random.nextInt(5, 8)
+            1 -> Random.nextInt(6, 10)
+            2 -> Random.nextInt(8, 12)
+            else -> 6
         }
 
         for (i in 0 until count) {
@@ -371,6 +409,26 @@ class Room(
                 0 -> if (Random.nextFloat() < 0.4f) EnemyType.WRAITH else EnemyType.SKELETON
                 1 -> if (Random.nextFloat() < 0.4f) EnemyType.LAVA_CASTER else EnemyType.FLAME_DANCER
                 2 -> if (Random.nextFloat() < 0.4f) EnemyType.SPEAR_THROWER else EnemyType.SHIELD_BEARER
+                else -> EnemyType.SKELETON
+            }
+            val pos = randomFloorPosition()
+            game.enemies.add(Enemy(enemyType, pos, layerIndex))
+        }
+    }
+
+    fun spawnElite(game: Game) {
+        val count = when (layerIndex) {
+            0 -> Random.nextInt(3, 5)
+            1 -> Random.nextInt(4, 6)
+            2 -> Random.nextInt(5, 7)
+            else -> 4
+        }
+
+        for (i in 0 until count) {
+            val enemyType = when (layerIndex) {
+                0 -> if (Random.nextFloat() < 0.6f) EnemyType.WRAITH else EnemyType.SKELETON
+                1 -> if (Random.nextFloat() < 0.5f) EnemyType.LAVA_CASTER else EnemyType.FLAME_DANCER
+                2 -> if (Random.nextFloat() < 0.5f) EnemyType.SPEAR_THROWER else EnemyType.SHIELD_BEARER
                 else -> EnemyType.SKELETON
             }
             val pos = randomFloorPosition()
