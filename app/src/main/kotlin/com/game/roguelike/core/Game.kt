@@ -600,7 +600,7 @@ class Game(private val context: Context) {
         // Depth-sort entities
         val entities = mutableListOf<Entity>()
         entities.add(player)
-        entities.addAll(enemies.filter { !it.isDead })
+        entities.addAll(enemies.filter { !it.deathAnimationDone })
         merchant?.let { entities.add(it) }
         entities.sortBy { it.position.y }
 

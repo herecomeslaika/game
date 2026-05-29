@@ -14,27 +14,15 @@ class TileRenderer(private val renderer: IsometricRenderer) {
 
         val theme = renderer.layerColors[room.layerIndex.coerceIn(0, 2)]
 
-        // Compute visible tile range from camera for viewport culling
-        val margin = 2 // extra tiles for walls that extend upward
-        val (minGridX, minGridY) = renderer.screenToGrid(
-            -renderer.tileWidth * margin.toFloat(),
-            -renderer.tileHeight * 4f * margin.toFloat()
-        )
-        val (maxGridX, maxGridY) = renderer.screenToGrid(
-            renderer.screenWidth + renderer.tileWidth * margin.toFloat(),
-            renderer.screenHeight + renderer.tileHeight * 4f * margin.toFloat()
-        )
-
-        val minRow = maxOf(0, (minGridY.toInt() - margin))
-        val maxRow = minOf(room.height - 1, (maxGridY.toInt() + margin))
-        val minCol = maxOf(0, (minGridX.toInt() - margin))
-        val maxCol = minOf(room.width - 1, (maxGridX.toInt() + margin))
-
-        for (row in minRow..maxRow) {
-            for (col in minCol..maxCol) {
+        for (row in 0 until room.height) {
+            for (col in 0 until room.width) {
                 val tile = room.getTile(col, row)
                 val sx = (col - row) * renderer.tileWidth / 2f - renderer.cameraX + renderer.screenWidth / 2f
                 val sy = (col + row) * renderer.tileHeight / 2f - renderer.cameraY + renderer.screenHeight / 2f
+
+                if (sx < -renderer.tileWidth * 2 || sx > renderer.screenWidth + renderer.tileWidth * 2 ||
+                    sy < -renderer.tileHeight * 4 || sy > renderer.screenHeight + renderer.tileHeight * 4
+                ) continue
 
                 when (tile) {
                     Room.TILE_FLOOR -> {
