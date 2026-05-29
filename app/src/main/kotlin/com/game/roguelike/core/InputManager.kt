@@ -22,6 +22,11 @@ class InputManager {
     var dshX = 0f; var dshY = 0f; var dshR = 0f
 
     private var attackPressed = false
+    var attackDown = false
+        private set
+    var attackReleased = false
+    var attackTouchId = -1
+        private set
     private var specialPressed = false
     private var dashPressed = false
 
@@ -30,8 +35,14 @@ class InputManager {
         joystickTouchId = -1
         joystickDirection = Vector2.ZERO
         attackPressed = false
+        attackDown = false
+        attackTouchId = -1
         specialPressed = false
         dashPressed = false
+    }
+
+    fun clearAttackReleased() {
+        attackReleased = false
     }
 
     fun onTouchEvent(event: MotionEvent, screenW: Int, screenH: Int): Boolean {
@@ -54,7 +65,7 @@ class InputManager {
                     val distSpc = sqrt((x - spcX) * (x - spcX) + (y - spcY) * (y - spcY))
                     val distDsh = sqrt((x - dshX) * (x - dshX) + (y - dshY) * (y - dshY))
                     when {
-                        distAtk <= atkR -> attackPressed = true
+                        distAtk <= atkR -> { attackPressed = true; attackDown = true; attackTouchId = id }
                         distSpc <= spcR -> specialPressed = true
                         distDsh <= dshR -> dashPressed = true
                     }
@@ -88,19 +99,30 @@ class InputManager {
                 }
             }
             MotionEvent.ACTION_UP -> {
-                // 单点触摸结束，所有手指都抬起，直接重置所有输入
+                val wasAttackDown = attackTouchId != -1
                 reset()
+                if (wasAttackDown) {
+                    attackReleased = true
+                }
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 val id = event.getPointerId(actionIdx)
+                if (id == attackTouchId) {
+                    attackDown = false
+                    attackReleased = true
+                    attackTouchId = -1
+                }
                 if (id == joystickTouchId) {
-                    // 摇杆手指抬起，直接重置
-                    reset()
+                    joystickTouchId = -1
+                    joystickDirection = Vector2.ZERO
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
-                // 触摸事件被系统中断，重置所有输入
+                val wasAttackDown = attackTouchId != -1
                 reset()
+                if (wasAttackDown) {
+                    attackReleased = true
+                }
             }
         }
         // 终极保险：只要没有绑定摇杆触摸ID，强制方向为零

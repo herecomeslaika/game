@@ -15,6 +15,8 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
         val isIdle = player.stateMachine.currentState == PlayerState.IDLE
         val isHurt = player.stateMachine.currentState == PlayerState.HURT
         val isDashing = player.isDashing
+        val isCharging = player.isCharging
+        val isWhirlwinding = player.isWhirlwinding
 
         canvas.save()
         if (!facingRight) {
@@ -134,6 +136,59 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
             renderer.paint.color = Color.argb((20 * glowPulse).toInt(), 255, 200, 100)
             renderer.paint.style = Paint.Style.FILL
             canvas.drawCircle(sx, sy - 25f + bodyOffset, 18f, renderer.paint)
+        }
+
+        // === CHARGING INDICATOR ===
+        if (isCharging) {
+            val chargeRatio = (player.chargeTime / 2.0f).coerceIn(0f, 1f)
+            val r = 25f
+            // Background ring
+            renderer.paint.color = Color.argb(60, 100, 100, 100)
+            renderer.paint.style = Paint.Style.STROKE
+            renderer.paint.strokeWidth = 4f
+            canvas.drawCircle(sx, sy - 25f, r, renderer.paint)
+            // Progress arc
+            val arcColor = when {
+                chargeRatio > 0.7f -> Color.parseColor("#FF4444")
+                chargeRatio > 0.4f -> Color.parseColor("#FF8800")
+                else -> Color.parseColor("#FFD700")
+            }
+            renderer.paint.color = arcColor
+            renderer.paint.strokeWidth = 5f
+            canvas.drawArc(sx - r, sy - 25f - r, sx + r, sy - 25f + r,
+                -90f, chargeRatio * 360f, false, renderer.paint)
+            // Glow pulse
+            val pulse = (sin(player.chargeTime * 8f) * 0.3f + 0.7f)
+            renderer.paint.color = Color.argb((40 * pulse * chargeRatio).toInt(), 255, 200, 50)
+            renderer.paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - 25f, r * chargeRatio * 0.8f, renderer.paint)
+        }
+
+        // === WHIRLWIND EFFECT ===
+        if (isWhirlwinding) {
+            val wwAngle = player.whirlwindAngle
+            val wwRadius = 55f
+            // Spinning blade arcs
+            for (i in 0..2) {
+                val baseAngle = wwAngle + i * 2.094f  // 120° apart
+                val startDeg = Math.toDegrees(baseAngle.toDouble()).toFloat()
+                renderer.paint.color = Color.argb(180, 255, 220, 80)
+                renderer.paint.style = Paint.Style.STROKE
+                renderer.paint.strokeWidth = 4f
+                canvas.drawArc(sx - wwRadius, sy - 25f - wwRadius, sx + wwRadius, sy - 25f + wwRadius,
+                    startDeg, 90f, false, renderer.paint)
+                // Inner glow
+                renderer.paint.color = Color.argb(100, 255, 255, 150)
+                renderer.paint.strokeWidth = 2f
+                canvas.drawArc(sx - wwRadius * 0.7f, sy - 25f - wwRadius * 0.7f,
+                    sx + wwRadius * 0.7f, sy - 25f + wwRadius * 0.7f,
+                    startDeg, 90f, false, renderer.paint)
+            }
+            // Center glow
+            val wwPulse = (sin(wwAngle * 3f) * 0.3f + 0.7f)
+            renderer.paint.color = Color.argb((60 * wwPulse).toInt(), 255, 200, 50)
+            renderer.paint.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - 25f, 15f * wwPulse, renderer.paint)
         }
 
         canvas.restore()

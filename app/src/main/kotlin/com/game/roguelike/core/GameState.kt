@@ -21,7 +21,9 @@ enum class PlayerState {
     SPECIAL,
     DASH,
     HURT,
-    DEAD
+    DEAD,
+    CHARGING,
+    WHIRLWIND
 }
 
 enum class EnemyState {

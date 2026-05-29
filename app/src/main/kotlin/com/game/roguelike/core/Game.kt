@@ -186,9 +186,10 @@ class Game(private val context: Context) {
         // Update virtual joystick visual
         virtualJoystick.updateKnob(input.joystickDirection)
 
-        // Process attack input
-        if (input.consumeAttack()) {
-            // Check merchant interaction first
+        // Process attack input (long press = charge, release = whirlwind or short tap = combo)
+        if (input.attackReleased) {
+            input.attackReleased = false
+            // Check merchant interaction first (short tap near merchant)
             val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer } == true
             if (nearMerchant) {
                 merchant!!.talked = true
@@ -196,6 +197,13 @@ class Game(private val context: Context) {
                 gameState = GameState.SHOP
             } else {
                 when (player.stateMachine.currentState) {
+                    PlayerState.CHARGING -> {
+                        if (player.chargeTime >= 0.3f) {
+                            player.startWhirlwind(this)
+                        } else {
+                            player.startAttack1(this)
+                        }
+                    }
                     PlayerState.IDLE, PlayerState.RUN -> {
                         player.startAttack1(this)
                     }
@@ -204,6 +212,13 @@ class Game(private val context: Context) {
                     }
                     else -> {}
                 }
+            }
+        } else if (input.attackDown) {
+            when (player.stateMachine.currentState) {
+                PlayerState.IDLE, PlayerState.RUN -> {
+                    player.startCharging()
+                }
+                else -> {}
             }
         }
 

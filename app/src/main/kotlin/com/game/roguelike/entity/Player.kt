@@ -103,6 +103,20 @@ class Player : Entity() {
     var isAttacking3 = false
         private set
 
+    // Charging / Whirlwind state
+    var chargeTime = 0f
+        private set
+    var whirlwindTimer = 0f
+        private set
+    var whirlwindDamageTick = 0f
+        private set
+    var isCharging = false
+        private set
+    var isWhirlwinding = false
+        private set
+    var whirlwindAngle = 0f
+        private set
+
     // Dash state
     var isDashing = false
         private set
@@ -174,7 +188,8 @@ class Player : Entity() {
             PlayerState.DASH -> updateDash(dt, game)
             PlayerState.HURT -> updateHurt(dt, game)
             PlayerState.DEAD -> {}
-            else -> {}
+            PlayerState.CHARGING -> updateCharging(dt, game)
+            PlayerState.WHIRLWIND -> updateWhirlwind(dt, game)
         }
 
         if (comboTimer > 0 && stateMachine.currentState != PlayerState.ATTACK1
@@ -357,6 +372,43 @@ class Player : Entity() {
         }
     }
 
+    private fun handleMovement(dt: Float, game: Game) {
+        val input = game.inputManager ?: return
+        if (input.joystickTouchId == -1) {
+            velocity.x += (0f - velocity.x) * 10f * dt
+            velocity.y += (0f - velocity.y) * 10f * dt
+            walkBlend = maxOf(0f, walkBlend - dt * 5f)
+            return
+        }
+        val moveDir = input.joystickDirection
+        if (moveDir.magnitude > 0.1f) {
+            walkBlend = minOf(1f, walkBlend + dt * 6f)
+            moveAnimTime += dt
+            moveAnimPhase = moveAnimTime * 4f
+
+            val tw = 64f; val th = 32f
+            val worldDX = moveDir.x / tw + moveDir.y / th
+            val worldDY = -moveDir.x / tw + moveDir.y / th
+            val worldDir = Vector2(worldDX, worldDY).normalized
+
+            val effectiveSpeed = if (dashSpeedBoostTimer > 0) speed * 1.5f else speed
+            velocity.x += (worldDir.x * effectiveSpeed - velocity.x) * 12f * dt
+            velocity.y += (worldDir.y * effectiveSpeed - velocity.y) * 12f * dt
+
+            position.x += velocity.x * dt
+            position.y += velocity.y * dt
+
+            if (worldDir.x > 0.15f) facingRight = true
+            else if (worldDir.x < -0.15f) facingRight = false
+        } else {
+            walkBlend = maxOf(0f, walkBlend - dt * 4f)
+            velocity.x += (0f - velocity.x) * 10f * dt
+            velocity.y += (0f - velocity.y) * 10f * dt
+            position.x += velocity.x * dt
+            position.y += velocity.y * dt
+        }
+    }
+
     private fun lungeTowardEnemy(game: Game, lungeDist: Float) {
         val nearest = findNearestEnemy(game) ?: return
         val dir = (nearest.position - position).normalized
@@ -496,6 +548,71 @@ class Player : Entity() {
         hurtTimer -= dt
         invincibleTimer = 0.5f
         if (hurtTimer <= 0) {
+            stateMachine.transitionTo(PlayerState.IDLE)
+        }
+    }
+
+    internal fun startCharging() {
+        if (stateMachine.currentState != PlayerState.IDLE &&
+            stateMachine.currentState != PlayerState.RUN) return
+        isCharging = true
+        chargeTime = 0f
+        stateMachine.transitionTo(PlayerState.CHARGING)
+    }
+
+    private fun updateCharging(dt: Float, game: Game) {
+        chargeTime += dt
+        // Allow movement while charging
+        handleMovement(dt, game)
+        if (chargeTime > 2.0f) chargeTime = 2.0f
+    }
+
+    internal fun startWhirlwind(game: Game) {
+        isCharging = false
+        isWhirlwinding = true
+        whirlwindTimer = (chargeTime * 3f).coerceIn(0.5f, 2.0f)
+        whirlwindDamageTick = 0f
+        whirlwindAngle = 0f
+        stateMachine.transitionTo(PlayerState.WHIRLWIND)
+        game.audioManager.play("attack3")
+    }
+
+    private fun updateWhirlwind(dt: Float, game: Game) {
+        whirlwindTimer -= dt
+        whirlwindAngle += dt * 12f
+        whirlwindDamageTick += dt
+
+        // Allow movement while whirlwinding
+        handleMovement(dt, game)
+
+        // Tick damage every 0.15s
+        if (whirlwindDamageTick >= 0.15f) {
+            whirlwindDamageTick -= 0.15f
+            val dmg = attackDamage1 * 0.8f + warCryDamageBonus + allDamageBonus
+            val isCrit = comboAlwaysCrit || rollCrit()
+            var finalDmg = if (isCrit) dmg * critMultiplier else dmg
+            finalDmg = applyConditionalDamage(finalDmg, game)
+            dealDamageToEnemies(game, finalDmg, 120f + attackRangeBonus, isCrit)
+        }
+
+        // Whirlwind particles
+        if (kotlin.random.Random.nextFloat() < 0.3f) {
+            val angle = whirlwindAngle + kotlin.random.Random.nextFloat() * 6.28f
+            val radius = 60f + kotlin.random.Random.nextFloat() * 50f
+            game.particles.add(Particle(
+                position = Vector2(position.x + kotlin.math.cos(angle) * radius * 0.5f,
+                                    position.y + kotlin.math.sin(angle) * radius * 0.3f),
+                velocity = Vector2(kotlin.math.cos(angle) * 60f, kotlin.math.sin(angle) * 40f),
+                color = android.graphics.Color.parseColor("#FFD700"),
+                life = 0.3f,
+                size = 3f
+            ))
+        }
+
+        if (whirlwindTimer <= 0) {
+            isWhirlwinding = false
+            comboStep = 0
+            comboTimer = 0f
             stateMachine.transitionTo(PlayerState.IDLE)
         }
     }
