@@ -69,13 +69,49 @@ MENU → PLAYING → (通关/全灭) → VICTORY / DEAD
 
 ## 构建与运行
 
+### 环境要求
+
+- Android SDK 34+
+- JDK 17+（推荐 JetBrains Runtime 或 Android Studio 内置 JBR）
+- Android 设备（API 26+）或模拟器
+
+### 设置 JAVA_HOME
+
 ```bash
-./gradlew assembleDebug        # 构建 APK
-./gradlew installDebug         # 安装到设备
-./gradlew test                 # 运行单元测试
+# Windows CMD
+set JAVA_HOME=C:\Users\杰拉德\.jdks\jbr-17.0.14
+
+# Git Bash / Linux / macOS
+export JAVA_HOME="/c/Users/杰拉德/.jdks/jbr-17.0.14"
+
+# 也可使用 Android Studio 内置 JDK
+# set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
 ```
 
-要求：Android SDK 34+, JDK 17, minSdk 26
+### 构建与安装
+
+```bash
+# 构建 Debug APK
+./gradlew.bat assembleDebug          # Windows
+./gradlew assembleDebug              # Linux / macOS
+
+# APK 输出路径
+# app/build/outputs/apk/debug/app-debug.apk
+
+# 安装到设备（需连接 Android 设备或启动模拟器）
+adb install app/build/outputs/apk/debug/app-debug.apk
+
+# 运行单元测试
+./gradlew test
+```
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| `Unsupported class file major version 65` | JAVA_HOME 未指向 JDK 17+，参考上方设置 |
+| `SDK location not found` | 项目根目录创建 `local.properties`，写入 `sdk.dir=C:\\Users\\<用户>\\AppData\\Local\\Android\\Sdk` |
+| Boss 关闪退 | 已修复（vibrate 权限 SecurityException 已捕获） |
 
 ## 技术栈
 
