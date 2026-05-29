@@ -1,238 +1,84 @@
-# HadesRoguelike
+# 冥途 — Android 等距视角 Roguelike
 
-一款灵感来源于《Hades》的 Android Roguelike 动作游戏，使用纯 Kotlin + Canvas 2D 绘制，无外部游戏引擎依赖。
+受 Hades 启发的等距视角动作 Roguelike，运行于 Android 平台。Canvas 2D 渲染，Kotlin 原生开发，无游戏引擎依赖。
 
-## 技术栈
+## 游戏玩法
 
-- **语言**: Kotlin
-- **最低 SDK**: 26 (Android 8.0)
-- **目标 SDK**: 34
-- **构建工具**: Gradle 8.2.0 + Kotlin 1.9.20
-- **渲染**: Android Canvas 2D + 等距投影 (Isometric Projection)
-- **UI 框架**: 无 XML Layout，全部通过 Canvas 自绘
-- **游戏循环**: 固定时间步 1/60s，SurfaceView 双缓冲渲染
-- **动画系统**: 实体呼吸/移动/闲置动画，全局时间驱动的环境特效（宝石脉动、火焰摇曳）
+- **等距视角实时战斗** — 三段连击 + 闪避 + 特殊技能
+- **七神祝福体系** — 宙斯/阿佛洛狄忒/雅典娜/阿瑞斯/赫尔墨斯/波塞冬/哈迪斯，各 4 个祝福 + 7 个 DUO 组合祝福
+- **多楼层关卡** — 普通房→精英房→Boss 房，三层主题（冥界/炼狱/极乐）
+- **6 种地形** — 地板、墙壁、障碍物、岩浆、水域、尖刺
+- **8 种敌人** — 骷髅、幽灵、持盾兵、掷矛手、火焰舞者、熔岩法师 + 3 种 Boss
 
 ## 项目结构
 
 ```
 app/src/main/kotlin/com/game/roguelike/
-├── core/                    # 核心引擎
-│   ├── Game.kt              # 游戏主循环、状态管理、场景调度
-│   ├── GameSurfaceView.kt   # SurfaceView 容器，触摸事件分发
-│   ├── InputManager.kt      # 多点触控输入处理（摇杆+按钮）
-│   └── GameState.kt         # 游戏状态枚举（菜单/战斗/祝福选择/商店/过渡/结算）
-├── entity/                  # 游戏实体
-│   ├── Entity.kt            # 实体基类（位置、速度、尺寸）
-│   ├── Player.kt            # 玩家角色（连招、冲刺、飞刀自动锁定、障碍碰撞、祝福增益）
-│   ├── Enemy.kt             # 敌人系统（9种敌人类型、状态机AI、Boss机制、移动/呼吸动画）
-│   ├── Merchant.kt          # 商人 NPC（靠近显示提示，按攻击键对话）
-│   └ Particle.kt            # 粒子特效（支持火痕伤害）
-├── level/                   # 关卡系统
-│   ├── Room.kt              # 房间（地形生成、敌人/Boss生成、门锁机制）
-│   ├── Layer.kt             # 层级（塔耳塔洛斯/阿斯福德/伊利西昂，各6-5间房）
-│   ├── Door.kt              # 门（锁定/解锁状态）
-├── combat/                  # 战斗系统
-│   ├── Projectile.kt        # 投射物（飞刀/魔法弹/火球/矛/宙斯闪电，追踪/穿透/爆炸机制）
-├── blessing/                # 祝福（Roguelike 增益选择系统）
-│   ├── Blessing.kt          # 祝福数据（16种祝福，4类×3稀有度）
-│   ├── BlessingSelector.kt  # 祝福选择器（随机3选1，去重已有祝福）
-├── shop/                    # 商店系统
-│   ├── Shop.kt              # 商店（5种商品：药水/充能/属性提升）
-├── rendering/               # 渲染系统
-│   ├── IsometricRenderer.kt # 等距投影渲染器（地形/角色/投射物/粒子/菜单/结算画面）
-├── ui/                      # UI 组件
-│   ├── HUD.kt               # 信息面板（血条/金币/层级/祝福图标/冷却条）
-│   ├── VirtualJoystick.kt   # 虚拟摇杆（左侧触摸区域）
-│   ├── ActionButtons.kt     # 动作按钮（攻/技/冲，右侧触摸区域）
-│   ├── BlessingSelectUI.kt  # 祝福选择界面（3张卡牌）
-│   ├── ShopUI.kt            # 商店界面（物品列表）
-├── util/                    # 工具类
-│   ├── Vector2.kt           # 2D向量（运算、距离、角度、归一化）
-│   ├── Rect.kt              # 矩形（碰撞检测）
-│   ├── StateMachine.kt      # 泛型状态机（转换回调）
-│   ├── Animation.kt         # 动画帧控制器
-└── MainActivity.kt          # 入口 Activity（沉浸模式、生命周期管理）
+├── core/                    # 核心游戏逻辑
+│   ├── Game.kt              # 主循环、状态机、战斗、碰撞、输入处理
+│   ├── GameState.kt         # 游戏状态枚举（菜单/战斗/Boss入场/祝福选择/暂停/死亡/胜利）
+│   ├── GameSurfaceView.kt   # Android SurfaceView 入口
+│   ├── BlessingRarity.kt    # 祝福稀有度（普通/稀有/史诗/DUO）
+│   └── GodType.kt           # 七神枚举及扩展属性（颜色、名称）
+├── entity/                  # 实体
+│   ├── Player.kt            # 玩家：属性、状态机、祝福效果、重置
+│   ├── Enemy.kt             # 敌人：AI、护盾、阶段转换、死亡动画
+│   ├── EnemyType.kt         # 敌人类型枚举（属性、Boss 名称/称号）
+│   └── Particle.kt          # 粒子效果
+├── blessing/                # 祝福系统
+│   └── Blessing.kt          # 28 祝福 + 7 DUO 祝福定义及查询方法
+├── level/                   # 关卡生成
+│   └── Room.kt              # 房间生成：布局变体、地形放置、敌人/Boss 生成
+├── rendering/               # 渲染
+│   ├── IsometricRenderer.kt # 等距渲染核心：坐标变换、摄像机、主题色
+│   ├── TileRenderer.kt      # 瓦片绘制：地板/墙壁/岩浆/水域/尖刺/宝箱/柱子
+│   ├── EnemyRenderer.kt     # 敌人绘制：类型外观、Boss、受伤闪白、死亡溶解
+│   └── ScreenRenderer.kt    # UI 层：HUD、祝福面板、Boss 血条、伤害数字
+└── util/                    # 工具
+    ├── Vector2.kt           # 2D 向量运算
+    └── StateMachine.kt      # 通用状态机（转换回调、状态计时）
+
+app/src/test/java/com/game/roguelike/
+├── util/
+│   ├── Vector2Test.kt       # 向量运算测试
+│   └── StateMachineTest.kt  # 状态机测试
+├── blessing/
+│   └── BlessingTest.kt      # 祝福系统测试
+└── entity/
+    ├── EnemyDamageTest.kt   # 敌人属性/状态测试
+    └── PlayerDamageTest.kt  # 玩家属性/重置测试
 ```
 
-## 游戏玩法
+## 渲染管线
 
-### 核心循环
-玩家穿越三层冥界（塔耳塔洛斯 → 斯福德 → 伊利西昂），每层包含多间房间。击败 Boss 后进入下一层，通关三层即为胜利。
+1. `GameSurfaceView` 驱动游戏循环（~60fps）
+2. `Game.gameLoop()` → `update()` + `render()`
+3. `IsometricRenderer` 管理等距坐标变换和摄像机跟随
+4. `TileRenderer` 按行列遍历瓦片，逐类型绘制等距菱形
+5. `EnemyRenderer` 深度排序后绘制敌人（含受伤闪白、死亡溶解动画）
+6. `ScreenRenderer` 叠加 HUD 层
 
-### 房间类型
-| 类型 | 说明 |
-|------|------|
-| ENTRY | 入口房间，无敌人 |
-| COMBAT | 战斗房间，清敌后解锁门 |
-| REWARD | 奖励房间，可选择祝福 |
-| SHOP | 商店房间，可用金币购买道具 |
-| BOSS | Boss 房间，击败后获得祝福选择 |
+## 游戏状态流转
 
-### 玩家操作
-- **虚拟摇杆**: 左侧屏幕触摸移动
-- **攻击按钮(攻)**: 三段连招（轻击→上挑→旋风斩），自动向最近敌人突进
-- **技能按钮(技)**: 投掷飞刀，受祝福可多刀/穿透/爆炸
-- **冲刺按钮(冲)**: 快速位移并获得无敌帧
-
-### 祝福系统（Roguelike 核心）
-每次通关 Boss 或进入奖励房间，从3个随机祝福中选择1个。祝福分为4类3稀有度：
-
-| 类别 | 祝福示例 |
-|------|----------|
-| 攻击 | 迅捷打击、血色锋刃、连锁斩击、重击 |
-| 技能 | 三重飞刀、穿透之刃、爆裂飞刀、速射 |
-| 冲刺 | 疾步冲刺、冲刺打击、残影、长距冲刺 |
-| 辅助 | 宙斯之雷、雅典娜之盾、战神之怒、治愈恩典 |
-
-### 敌人类型
-| 层级 | 普通敌人 | Boss |
-|------|----------|------|
-| 塔耳塔洛斯 | 骷髅兵（3段连招）、幽灵（相位转移+散射） | 巨型骷髅（3阶段：召唤+地裂+增强） |
-| 斯福德 | 火焰舞者（火焰冲刺）、熔岩术士（三重火球+岩浆池） | 炼狱泰坦（连击冲锋+陨石） |
-| 伊利西昂 | 持盾守卫（盾击+投盾）、投矛手（多矛+后退） | 冠军勇士（2阶段：盾矛→双剑+闪避） |
-
-### 商店道具
-| 道具 | 价格 | 效果 |
-|------|------|------|
-| 生命药水 | 30g | 恢复30点HP |
-| 冲刺充能 | 20g | 重置冲刺冷却 |
-| 生命上限提升 | 80g | +25最大HP |
-| 攻击强化 | 60g | +5攻击力 |
-| 移速提升 | 50g | +20%移速 |
-
-## 渲染架构
-
-- **等距投影**: 世界坐标通过 `(x-y)*tw/2, (x+y)*th/2` 转换为屏幕坐标，相机平滑跟踪玩家
-- **深度排序**: 所有实体按 Y 坐标排序绘制，确保正确的遮挡关系
-- **层级主题**: 每层冥界有独立的配色方案（暗紫/暗红/暗绿），包含地板/墙壁/高光/强调色
-- **粒子系统**: 受击/死亡/火痕/爆炸产生粒子特效，衰减消亡；火痕粒子可对玩家造成持续伤害
-- **屏幕震动**: 攻击命中和受伤触发屏幕震动反馈
-- **环境渲染**: 墙壁砖纹理细节、地板花纹、障碍物顶部脉动宝石/水晶
-- **实体动画**: 角色呼吸浮动、移动时肢体摆动、闲置待机动画、受伤白闪反馈；玩家含铠甲/斗篷/靴子/剑格细节；敌人按类型差异化渲染
-- **战斗特效**: 连招弧光、旋风斩光圈、冲刺残影、飞刀追踪轨迹、速度线、闲置光环
+```
+MENU → PLAYING → (通关/全灭) → VICTORY / DEAD
+                → BOSS_ENTRANCE → PLAYING(Boss战)
+                → BLESSING_SELECT → PLAYING
+                → PAUSE
+```
 
 ## 构建与运行
 
-### 环境要求
-- JDK 17+（Android Gradle Plugin 8.2 需要 Java 11+，推荐 JDK 17）
-- Android SDK（已安装 platform 34、build-tools 34.0.0）
-- 系统默认 JDK 可能是 Java 8（32位），无法运行构建，需手动指定 JDK 17+
-
-### 命令行构建
-
 ```bash
-# 1. 设置 JAVA_HOME 为 JDK 17+（Windows 示例）
-#    常见 JDK 17 路径：
-#    - JetBrains Runtime: C:\Users\<用户名>\.jdks\jbr-17.0.14
-#    - Android Studio 内置: C:\Program Files\Android\Android Studio\jbr
-export JAVA_HOME="/c/Users/杰拉德/.jdks/jbr-17.0.14"   # Git Bash / Linux
-set JAVA_HOME=C:\Users\杰拉德\.jdks\jbr-17.0.14         # CMD
-
-# 2. 构建 Debug APK
-./gradlew.bat assembleDebug          # Windows
-./gradlew assembleDebug              # Linux / macOS
-
-# 3. APK 输出路径
-# app/build/outputs/apk/debug/app-debug.apk
-
-# 4. 安装到设备（需连接 Android 设备或启动模拟器）
-adb install app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleDebug        # 构建 APK
+./gradlew installDebug         # 安装到设备
+./gradlew test                 # 运行单元测试
 ```
 
-### IDE 构建
-在 Android Studio 中直接打开项目，点击 Run 即可。确保 Android Studio 使用的 JDK 为 17+（Settings → Build → Gradle → Gradle JDK）。
+要求：Android SDK 34+, JDK 17, minSdk 26
 
-### 常见构建问题
-| 问题 | 原因 | 解决 |
-|------|------|------|
-| `Invalid maximum heap size: -Xmx4096m` | 使用了 32位 JDK（Client VM） | 设置 JAVA_HOME 为 64位 JDK 17+ |
-| `No matching variant...compatible with Java 8` | AGP 8.2 不兼容 Java 8 | 设置 JAVA_HOME 为 JDK 11+ |
-| 构建卡死/OOM | 默认 heap 设置过大 | 修改 `gradle.properties` 中 `-Xmx` 值（32位 JDK 改为 `-Xmx1024m`） |
-| Run 按钮灰色 | Gradle Sync 未完成 | 见下方详解 |
+## 技术栈
 
-### Run 按钮灰色无法运行（Android Studio）
-
-Run 按钮灰色通常意味着 Android Studio 没有识别到可运行的 Android 应用模块。按以下步骤排查：
-
-**1. 完成 Gradle Sync**
-- 打开项目后，右下角会显示 "Gradle Build Running..."，等待其完成
-- 如果没有自动触发：菜单 `File → Sync Project with Gradle Files`（或工具栏 🐘 图标）
-- Sync 成功后 Run 按钮应该变为可用
-
-**2. 检查 Gradle JDK 设置**
-- `File → Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK`
-- 必须选择 **JDK 17+**（推荐 JetBrains Runtime 17 或 21）
-- 如果下拉列表中没有 JDK 17+，点击 "Download JDK..." 下载
-
-**3. 检查 Android SDK 配置**
-- `File → Settings → Languages & Frameworks → Android SDK`
-- 确认 SDK 路径正确（通常在 `C:\Users\<用户名>\AppData\Local\Android\Sdk`）
-- 确认已安装 `Android 14 (API 34)` 平台
-
-**4. 检查运行配置**
-- 顶部工具栏 Run 按钮左侧的下拉框，应显示 `app`
-- 如果显示 "Edit Configurations..."，点击后点 `+` → `Android App`，Module 选择 `app.app.main`
-
-**5. 重新导入项目**
-- 如果以上均无效：`File → Close Project` → 在欢迎界面删除项目 → `Open` 重新打开项目目录
-- 等待 Gradle Sync 完成后再试
-
-### 运行
-横屏模式运行，推荐使用平板或大屏手机以获得最佳操作体验。
-
-## 战斗系统详解
-
-### 飞刀（特殊攻击）
-- 自动锁定最近敌人，无敌人时朝面朝方向飞行
-- 追踪弹道：飞刀发射后持续修正航向，平滑转向锁定目标
-- 冷却时间 0.8s，飞行速度 500px/s
-- 祝福增强：三重飞刀/穿透/爆裂/速射
-
-### 连招系统
-| 阶段 | 名称 | 前摇 | 伤害 | 范围 |
-|------|------|------|------|------|
-| 第一击 | 轻击 | 0.15s | 基础攻击力 | 前方单体 |
-| 第二击 | 上挑 | 0.15s | 基础攻击力×1.2 | 前方小范围 |
-| 第三击 | 旋风斩 | 0.20s | 基础攻击力×1.5 | 周身范围 |
-
-### 障碍物碰撞
-房间中的障碍物（TILE_OBSTACLE）具有碰撞体积，玩家和敌人会被推离障碍物，采用最小穿透轴分离策略。
-
-### 环境伤害
-火焰舞者留下的火痕粒子具有伤害属性，玩家触碰时受到持续伤害（冲刺期间免疫）。
-
-## 更新日志
-
-### v0.2 — 战斗体验与视觉升级
-- **飞刀自动锁定**：特殊攻击自动锁定最近敌人，飞刀追踪转向
-- **战斗节奏优化**：连招前摇缩短，飞刀冷却 1.5s → 0.8s，飞刀速度提升
-- **祝福去重**：祝福选择不再重复出现已拥有的祝福；无可选祝福时自动跳过
-- **障碍碰撞**：玩家与障碍物物理碰撞推离
-- **火痕伤害**：火焰舞者留下的火痕可对玩家造成接触伤害
-- **等距边界**：房间边界适配等距墙壁外延，防止角色卡入墙内
-- **角色动画**：玩家与全部9种敌人增加呼吸/移动/闲置/受伤动画，丰富肢体细节（铠甲、头盔、护手、靴子、武器配件等），walkBlend平滑过渡消除抽搐
-- **环境渲染**：墙壁砖纹、地板花纹、障碍脉动宝石、顶部边缘高光
-- **战斗特效**：连招弧光增强、旋风斩光圈、冲刺残影、闲置光环、奔跑速度线
-- **稳定性修复**：修复敌人召唤导致的 ConcurrentModificationException；修复层级过渡状态机死锁
-
-### v0.3 — 商人交互与动画优化
-- **商人交互改为按键触发**：不再靠近自动触发，靠近时显示"按攻对话"提示，按攻击键开启商店
-- **动画平滑优化**：引入walkBlend混合因子，消除行走/待机切换时的抽搐感；降低摆动幅度使动作更自然
-- **玩家动画**：行走/待机过渡使用6fps渐入+5fps渐出，腿部摆动6→4、身体起伏3→2
-- **敌人动画**：统一walkBlend过渡，消除状态切换时的相位跳变
-
-### v0.4 — 敌人行为与Boss战升级
-- **PREPARE_ATTACK 前摇状态**：敌人攻击前进入蓄力状态，给玩家反应窗口
-- **骷髅兵连招**：3段连击（轻击→重击→旋转斩），旋转斩范围更大
-- **幽灵相位转移**：玩家靠近时瞬移至远处并发射3枚魔法弹散射
-- **火焰舞者火焰冲刺**：中距离向玩家高速冲刺，留下强烈火痕
-- **熔岩术士三重火球**：每3次攻击发射3枚火球扇形散射；定时投放岩浆池
-- **持盾守卫盾击**：近距离盾牌猛冲+击退；低血量投掷盾牌变为脆弱状态
-- **投矛手多重投矛**：连续投掷2枚矛，近身时主动后退保持距离
-- **巨型骷髅3阶段**：60%HP解锁地裂攻击（范围AOE+冲击波粒子），30%HP伤害+50%+召唤增强
-- **炼狱泰坦连击冲锋**：3连冲锋+陨石攻击（1.2s蓄力+地面预警圈+25点伤害爆炸）
-- **冠军勇士2阶段**：50%HP投掷盾牌切换为双剑近战连招，获得翻滚闪避（0.3s无敌帧）
-- **Boss多阶段转换**：阶段切换时短暂无敌+粒子爆发+屏幕震动+视觉变化
-- **攻击预警视觉**：地裂红色扩散圈、陨石橙色脉冲预警圈、蓄力红色光晕、闪避残影
-- **Phase 2视觉变化**：冠军勇士移除盾牌+双剑+红眼狂暴光环
+- Kotlin, Android Canvas 2D, SurfaceView
+- JUnit 5, Mockito（单元测试）
+- 无第三方游戏引擎或渲染库
