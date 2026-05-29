@@ -16,6 +16,7 @@ import com.game.roguelike.entity.*
 import com.game.roguelike.level.*
 import com.game.roguelike.rendering.IsometricRenderer
 import com.game.roguelike.shop.Shop
+import com.game.roguelike.ui.ShopTouchResult
 import com.game.roguelike.ui.*
 import com.game.roguelike.util.Vector2
 import kotlin.math.min
@@ -171,6 +172,7 @@ class Game(private val context: Context) {
         updateHitstop(dt)
         updateShake(dt)
         updateParticles(dt)
+        shopUI.update(dt)
     }
 
     private fun updateMenu(dt: Float) {
@@ -190,7 +192,7 @@ class Game(private val context: Context) {
             val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer } == true
             if (nearMerchant) {
                 merchant!!.talked = true
-                shop.open(gold)
+                shop.open(gold, currentLayerIndex)
                 gameState = GameState.SHOP
             } else {
                 when (player.stateMachine.currentState) {
@@ -242,8 +244,19 @@ class Game(private val context: Context) {
         while (enemyIter.hasNext()) {
             val enemy = enemyIter.next()
             if (enemy.isDead && enemy.deathAnimationDone) {
-                gold += enemy.goldDrop
+                val dropAmount = if (currentRoom?.type == RoomType.ELITE) enemy.goldDrop * 2 else enemy.goldDrop
+                gold += dropAmount
                 audioManager.play("enemy_death")
+                // Gold pickup particles
+                for (i in 0..3) {
+                    particles.add(Particle(
+                        position = Vector2(enemy.position.x, enemy.position.y),
+                        velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 60f, -40f),
+                        color = android.graphics.Color.parseColor("#FFD700"),
+                        life = 0.5f,
+                        size = 3f
+                    ))
+                }
                 // Hades summon: spawn ghost on kill
                 if (player.hasSummon && ghosts.size < 3) {
                     ghosts.add(GhostSummon(enemy.position))
@@ -507,9 +520,23 @@ class Game(private val context: Context) {
                 gameState = GameState.BOSS_ENTRANCE
             }
             RoomType.EVENT -> {
-                // Random event: heal or blessing
-                if (kotlin.random.Random.nextFloat() < 0.5f) {
+                // Random event: heal, blessing, or gold
+                val roll = kotlin.random.Random.nextFloat()
+                if (roll < 0.35f) {
                     player.health = (player.health + (player.maxHealth * 0.2f).toInt()).coerceAtMost(player.maxHealth)
+                } else if (roll < 0.6f) {
+                    val eventGold = 50 + currentLayerIndex * 20
+                    gold += eventGold
+                    // Gold particles
+                    for (i in 0..5) {
+                        particles.add(Particle(
+                            position = Vector2(player.position.x, player.position.y),
+                            velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 80f, -50f),
+                            color = android.graphics.Color.parseColor("#FFD700"),
+                            life = 0.6f,
+                            size = 4f
+                        ))
+                    }
                 } else {
                     gameState = GameState.BLESSING_SELECT
                     blessingSelector.generateOffering(currentLayerIndex, blessings)
@@ -620,7 +647,7 @@ class Game(private val context: Context) {
             }
             GameState.SHOP -> {
                 renderPlaying(canvas)
-                shopUI.render(canvas, shop)
+                shopUI.render(canvas, shop, gold)
             }
             GameState.LAYER_TRANSITION -> {
                 renderPlaying(canvas)
@@ -737,17 +764,23 @@ class Game(private val context: Context) {
                 }
             }
             GameState.SHOP -> {
-                val purchased = shopUI.handleTouch(x, y, shop)
-                if (purchased != null) {
-                    val cost = purchased.cost
-                    if (gold >= cost) {
-                        gold -= cost
-                        purchased.applyEffect(player, this)
+                val (item, result) = shopUI.handleTouch(x, y, shop, gold)
+                when (result) {
+                    ShopTouchResult.PURCHASED -> {
+                        if (item != null) {
+                            gold -= item.cost
+                            item.sold = true
+                            item.applyEffect(player, this)
+                            audioManager.play("pickup")
+                        }
                     }
-                } else {
-                    // Tap outside items to close
-                    shop.close()
-                    gameState = GameState.PLAYING
+                    ShopTouchResult.CANT_AFFORD -> {
+                        shopUI.purchaseFailedTimer = 0.8f
+                    }
+                    ShopTouchResult.OUTSIDE -> {
+                        shop.close()
+                        gameState = GameState.PLAYING
+                    }
                 }
             }
             GameState.GAME_OVER, GameState.VICTORY -> {
