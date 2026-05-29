@@ -1,11 +1,12 @@
 package com.game.roguelike.rendering
 
+import android.content.Context
 import android.graphics.*
 import com.game.roguelike.core.PlayerState
 import com.game.roguelike.entity.Player
 import kotlin.math.sin
 
-class PlayerRenderer(private val renderer: IsometricRenderer) {
+class PlayerRenderer(private val renderer: IsometricRenderer, private val context: Context) {
 
     fun renderPlayer(canvas: Canvas, player: Player) {
         val (sx, sy) = renderer.worldToScreen(player.position)

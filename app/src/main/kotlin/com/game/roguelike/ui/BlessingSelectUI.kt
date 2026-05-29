@@ -123,14 +123,14 @@ class BlessingSelectUI {
         // God symbol circle
         val godClr = blessing.god.color
         typePaint.color = godClr
-        canvas.drawCircle(x + cardWidth / 2f, y + 100f, 35f, typePaint)
+        canvas.drawCircle(x + cardWidth / 2f, y + 100f, 52f, typePaint)
 
         // God icon in circle
         paint.color = Color.WHITE
-        paint.textSize = 22f
+        paint.textSize = 33f
         paint.textAlign = Paint.Align.CENTER
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
-        canvas.drawText(blessing.god.icon, x + cardWidth / 2f, y + 107f, paint)
+        canvas.drawText(blessing.god.icon, x + cardWidth / 2f, y + 110f, paint)
 
         // God name
         typePaint.color = godClr

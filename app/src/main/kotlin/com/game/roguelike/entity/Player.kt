@@ -218,6 +218,12 @@ class Player : Entity() {
 
     private fun updateIdle(dt: Float, game: Game) {
         val input = game.inputManager ?: return
+        // 强校验：没有摇杆触摸直接清空所有移动状态，从根源杜绝自动移动
+        if (input.joystickTouchId == -1) {
+            velocity = Vector2.ZERO
+            walkBlend = 0f
+            return
+        }
         velocity = Vector2.ZERO
         walkBlend = maxOf(0f, walkBlend - dt * 5f)
         if (moveAnimTime > 0f) moveAnimTime = maxOf(0f, moveAnimTime - dt * 3f)
@@ -230,6 +236,13 @@ class Player : Entity() {
 
     private fun updateRun(dt: Float, game: Game) {
         val input = game.inputManager ?: return
+        // 强校验：没有摇杆触摸直接切回Idle，停止所有移动
+        if (input.joystickTouchId == -1) {
+            velocity = Vector2.ZERO
+            walkBlend = 0f
+            stateMachine.transitionTo(PlayerState.IDLE)
+            return
+        }
         walkBlend = minOf(1f, walkBlend + dt * 6f)
         moveAnimTime += dt
         moveAnimPhase = moveAnimTime * 4f

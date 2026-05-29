@@ -29,7 +29,7 @@ class Game(private val context: Context) {
     var gameState = GameState.MENU
         private set
 
-    val renderer = IsometricRenderer()
+    val renderer = IsometricRenderer(context)
     val player = Player()
     val enemies = mutableListOf<Enemy>()
     val projectiles = mutableListOf<Projectile>()
@@ -71,6 +71,7 @@ class Game(private val context: Context) {
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
     var vibrator: Vibrator? = null
+    internal val screenRenderer = renderer.screenRenderer
 
     private val TICK = 1f / 60f
     private var accumulator = 0f
@@ -656,8 +657,26 @@ class Game(private val context: Context) {
 
     fun handleTouch(x: Float, y: Float) {
         when (gameState) {
+            GameState.PLAYING -> {
+                // 检测右上角返回按钮点击
+                if (hud.handleBackButtonClick(x, y)) {
+                    // 弹出确认提示，暂时直接返回主菜单
+                    gameState = GameState.MENU
+                    inputManager?.reset()
+                    return
+                }
+            }
             GameState.MENU -> {
-                startNewRun()
+                // 检查点击开始游戏按钮
+                if (screenRenderer.startBtnRect.contains(x, y)) {
+                    startNewRun()
+                }
+                // 检查点击退出游戏按钮
+                else if (screenRenderer.exitBtnRect.contains(x, y)) {
+                    // 提示退出游戏，直接关闭Activity
+                val activity = context as android.app.Activity
+                activity.finishAndRemoveTask()
+                }
             }
             GameState.BLESSING_SELECT -> {
                 if (blessingSelector.currentOffering.isEmpty()) {
@@ -685,6 +704,7 @@ class Game(private val context: Context) {
             }
             GameState.GAME_OVER, GameState.VICTORY -> {
                 gameState = GameState.MENU
+                inputManager?.reset()
             }
             else -> {}
         }

@@ -1,49 +1,86 @@
 package com.game.roguelike.rendering
 
+import android.content.Context
 import android.graphics.*
+import com.game.roguelike.R
 import kotlin.math.sin
 import kotlin.math.min
 
-class ScreenRenderer(private val renderer: IsometricRenderer) {
+class ScreenRenderer(private val renderer: IsometricRenderer, private val context: Context) {
+
+    // 加载主界面人物图片
+    private val menuPlayerBitmap: Bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.people)
+
+    // 菜单按钮点击区域
+    val startBtnRect = RectF()
+    val exitBtnRect = RectF()
 
     fun renderMenu(canvas: Canvas, w: Int, h: Int) {
-        renderer.paint.color = Color.parseColor("#0A0515")
+        renderer.paint.color = Color.parseColor("#0A0F19")
         renderer.paint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
 
-        // Decorative pillars
-        renderer.paint.color = Color.parseColor("#1A0F2D")
-        canvas.drawRect(w * 0.05f, h * 0.1f, w * 0.08f, h * 0.9f, renderer.paint)
-        canvas.drawRect(w * 0.92f, h * 0.1f, w * 0.95f, h * 0.9f, renderer.paint)
-        // Pillar detail
-        renderer.paint.color = Color.parseColor("#2A1F3D")
-        for (i in 0..4) {
-            val y = h * 0.15f + i * h * 0.15f
-            canvas.drawRect(w * 0.05f, y, w * 0.08f, y + 10f, renderer.paint)
-            canvas.drawRect(w * 0.92f, y, w * 0.95f, y + 10f, renderer.paint)
-        }
+        // 左侧狂野暗黑风格艺术字标题
+        renderer.titlePaint.textSize = 190f
+        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.titlePaint.textAlign = Paint.Align.LEFT
+        // 暗黑风格：暗红色+粗黑描边+文字阴影
+        renderer.titlePaint.setShadowLayer(15f, 6f, 6f, Color.BLACK)
+        renderer.titlePaint.color = Color.parseColor("#990000")
+        renderer.titlePaint.style = Paint.Style.FILL_AND_STROKE
+        renderer.titlePaint.strokeWidth = 7f
+        canvas.drawText("冥途", w * 0.08f, h * 0.32f, renderer.titlePaint)
+        // 重置画笔样式避免影响其他绘制
+        renderer.titlePaint.clearShadowLayer()
+        renderer.titlePaint.strokeWidth = 0f
+        renderer.titlePaint.style = Paint.Style.FILL
 
-        // Background flames
-        for (i in 0..5) {
-            val fx = w * (0.1f + i * 0.15f)
-            val fy = h * 0.85f
-            val flameH = 30f + sin(renderer.globalTime * 3f + i * 1.5f) * 15f
-            renderer.paint.color = Color.argb(30, 255, 80, 0)
-            canvas.drawOval(fx - 15f, fy - flameH, fx + 15f, fy + 5f, renderer.paint)
-            renderer.paint.color = Color.argb(20, 255, 150, 0)
-            canvas.drawOval(fx - 8f, fy - flameH * 0.7f, fx + 8f, fy, renderer.paint)
-        }
+        // 菜单按钮列表 - 整体下移+增大上下间距
+        val btnX = w * 0.08f
+        var btnY = h * 0.5f
+        val btnSpacing = 170f
+        val btnWidth = 600f
+        val btnHeight = 80f
 
-        // Title
-        canvas.drawText("哈迪斯", w / 2f, h * 0.35f, renderer.titlePaint)
+        // 开始游戏按钮 - 去掉金色底纹，仅文字闪烁效果
+        val alpha = ((sin(renderer.globalTime * 2f) + 1) * 127 + 128).toInt()
+        renderer.subtitlePaint.color = Color.argb(alpha, 255, 215, 0)
+        renderer.subtitlePaint.textAlign = Paint.Align.LEFT
+        renderer.subtitlePaint.textSize = 82f
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
+        startBtnRect.set(btnX - 20f, btnY - 60f, btnX + btnWidth, btnY + 20f)
+        canvas.drawText("开始游戏", btnX, btnY, renderer.subtitlePaint)
+        btnY += btnSpacing
 
-        // Subtitle
-        canvas.drawText("地狱逃脱", w / 2f, h * 0.45f, renderer.subtitlePaint)
+        // 选项按钮（暂不实现）
+        renderer.subtitlePaint.color = Color.parseColor("#AAAAAA")
+        canvas.drawText("选项", btnX, btnY, renderer.subtitlePaint)
+        btnY += btnSpacing
 
-        // Tap to start
-        val alpha = ((sin(renderer.globalTime * 3f) + 1) * 127).toInt()
-        renderer.subtitlePaint.color = Color.argb(alpha, 200, 180, 150)
-        canvas.drawText("点击开始", w / 2f, h * 0.65f, renderer.subtitlePaint)
+        // 退出游戏按钮
+        exitBtnRect.set(btnX - 20f, btnY - 60f, btnX + btnWidth, btnY + 20f)
+        canvas.drawText("退出游戏", btnX, btnY, renderer.subtitlePaint)
+
+        // ========== 右侧替换为自定义人物图片 ==========
+        val cx = w * 0.78f
+        val cy = h * 0.52f
+        val bitmapWidth = 1480f
+        val bitmapHeight = 2060f
+        val left = cx - bitmapWidth / 2
+        val top = cy - bitmapHeight / 2
+        val dstRect = RectF(left, top, left + bitmapWidth, top + bitmapHeight)
+        canvas.drawBitmap(menuPlayerBitmap, null, dstRect, renderer.paint)
+
+        // 底部版本信息
+        renderer.subtitlePaint.textSize = 30f
+        renderer.subtitlePaint.color = Color.parseColor("#666666")
+        canvas.drawText("冥途 v1.0", w * 0.08f, h * 0.92f, renderer.subtitlePaint)
+
+        // 恢复画笔默认设置
+        renderer.titlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+        renderer.subtitlePaint.textSize = 54f
     }
 
     fun renderGameOver(canvas: Canvas, w: Int, h: Int) {

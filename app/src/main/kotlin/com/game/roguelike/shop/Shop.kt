@@ -11,35 +11,37 @@ data class ShopItem(
 )
 
 class Shop {
+    var items = listOf<ShopItem>()
     var isOpen = false
-    var items: List<ShopItem> = listOf()
 
+    @Suppress("UNUSED_PARAMETER")
     fun open(currentGold: Int) {
         isOpen = true
-        items = generateItems()
+        generateItems()
     }
 
     fun close() {
         isOpen = false
     }
 
-    private fun generateItems(): List<ShopItem> {
-        return listOf(
+    private fun generateItems() {
+        items = listOf(
             ShopItem("生命药水", "恢复30点生命值", 30) { p, _ ->
                 p.health = (p.health + 30).coerceAtMost(p.maxHealth)
             },
-            ShopItem("冲刺充能", "重置冲刺冷却", 20) { p, _ ->
-                p.dashCooldownTimer = 0f
-            },
             ShopItem("生命上限提升", "+25最大生命", 80) { p, _ ->
-                p.maxHealth += 25; p.health += 25
+                p.maxHealth += 25
+                p.health += 25
             },
-            ShopItem("攻击强化", "+5攻击力", 60) { p, _ ->
-                p.attackDamage1 += 5f; p.attackDamage2 += 5f; p.attackDamage3 += 5f
+            ShopItem("攻击提升", "+10基础伤害", 100) { p, _ ->
+                p.attackDamage1 += 10f
+                p.attackDamage2 += 10f
+                p.attackDamage3 += 10f
+                p.specialDamage += 10f
             },
-            ShopItem("移速提升", "+20%移速", 50) { p, _ ->
-                p.speed *= 1.2f
-            },
+            ShopItem("暴击提升", "+15%暴击率", 120) { p, _ ->
+                p.critChance += 0.15f
+            }
         )
     }
 }

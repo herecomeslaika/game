@@ -41,22 +41,17 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // Handle UI-state touches first (menu, blessing select, shop, game over)
-        if (game.gameState == GameState.MENU ||
-            game.gameState == GameState.BLESSING_SELECT ||
-            game.gameState == GameState.SHOP ||
-            game.gameState == GameState.GAME_OVER ||
-            game.gameState == GameState.VICTORY
-        ) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    game.handleTouch(event.x, event.y)
-                }
-            }
-            // Don't process gameplay input for UI states
+        // 所有状态下都先处理UI触摸（包括游戏状态的返回按钮）
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            game.handleTouch(event.x, event.y)
+        }
+
+        // 非游戏状态下不再处理摇杆输入
+        if (game.gameState != GameState.PLAYING) {
             return true
         }
 
-        // Only process gameplay input when playing
+        // 游戏状态下处理摇杆输入
         return inputManager.onTouchEvent(event, width, height)
     }
 }

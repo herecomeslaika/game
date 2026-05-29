@@ -7,7 +7,9 @@ import com.game.roguelike.level.Door
 import com.game.roguelike.level.Room
 import com.game.roguelike.util.Vector2
 
-class IsometricRenderer {
+import android.content.Context
+
+class IsometricRenderer(val context: Context) {
 
     var screenWidth = 1920
     var screenHeight = 1080
@@ -28,13 +30,13 @@ class IsometricRenderer {
     }
     internal val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#FFD700")
-        textSize = 80f
+        textSize = 120f
         typeface = Typeface.DEFAULT_BOLD
         textAlign = Paint.Align.CENTER
     }
     internal val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#CCAA88")
-        textSize = 36f
+        textSize = 54f
         typeface = Typeface.DEFAULT
         textAlign = Paint.Align.CENTER
     }
@@ -69,10 +71,10 @@ class IsometricRenderer {
 
     // Sub-renderers
     private val tileRenderer = TileRenderer(this)
-    private val playerRenderer = PlayerRenderer(this)
+    private val playerRenderer = PlayerRenderer(this, context)
     private val enemyRenderer = EnemyRenderer(this)
     private val entityRenderer = EntityRenderer(this)
-    private val screenRenderer = ScreenRenderer(this)
+    internal val screenRenderer = ScreenRenderer(this, context)
 
     fun updateScreenSize(width: Int, height: Int) {
         screenWidth = width

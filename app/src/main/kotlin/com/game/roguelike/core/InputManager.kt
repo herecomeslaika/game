@@ -5,10 +5,14 @@ import com.game.roguelike.util.Vector2
 import kotlin.math.sqrt
 
 class InputManager {
-    var joystickDirection = Vector2.ZERO
-        private set
+    // 核心修复：只要没有绑定摇杆触摸ID，永远返回方向为零，从根源杜绝残留值
+    var joystickDirection: Vector2
+        get() = if (joystickTouchId == -1) Vector2.ZERO else _joystickDirection
+        private set(value) { _joystickDirection = value }
+    private var _joystickDirection = Vector2.ZERO
 
-    private var joystickTouchId: Int = -1
+    var joystickTouchId: Int = -1
+        private set
     private var joystickOrigin = Vector2.ZERO
     private val joystickMaxRadius = 100f
 
@@ -20,6 +24,15 @@ class InputManager {
     private var attackPressed = false
     private var specialPressed = false
     private var dashPressed = false
+
+    /** 重置所有输入状态，切换游戏状态时调用 */
+    fun reset() {
+        joystickTouchId = -1
+        joystickDirection = Vector2.ZERO
+        attackPressed = false
+        specialPressed = false
+        dashPressed = false
+    }
 
     fun onTouchEvent(event: MotionEvent, screenW: Int, screenH: Int): Boolean {
         val halfW = screenW / 2f
@@ -48,9 +61,11 @@ class InputManager {
                 }
             }
             MotionEvent.ACTION_MOVE -> {
+                var joystickFound = false
                 for (i in 0 until event.pointerCount) {
                     val id = event.getPointerId(i)
                     if (id == joystickTouchId) {
+                        joystickFound = true
                         val x = event.getX(i)
                         val y = event.getY(i)
                         val dx = x - joystickOrigin.x
@@ -67,18 +82,30 @@ class InputManager {
                         }
                     }
                 }
+                // 修复：如果摇杆手指不在触摸列表里，重置方向
+                if (joystickTouchId != -1 && !joystickFound) {
+                    reset()
+                }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+            MotionEvent.ACTION_UP -> {
+                // 单点触摸结束，所有手指都抬起，直接重置所有输入
+                reset()
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
                 val id = event.getPointerId(actionIdx)
                 if (id == joystickTouchId) {
-                    joystickTouchId = -1
-                    joystickDirection = Vector2.ZERO
+                    // 摇杆手指抬起，直接重置
+                    reset()
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
-                joystickTouchId = -1
-                joystickDirection = Vector2.ZERO
+                // 触摸事件被系统中断，重置所有输入
+                reset()
             }
+        }
+        // 终极保险：只要没有绑定摇杆触摸ID，强制方向为零
+        if (joystickTouchId == -1) {
+            joystickDirection = Vector2.ZERO
         }
         return true
     }
