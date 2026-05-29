@@ -4,6 +4,7 @@ enum class GameState {
     MENU,
     PLAYING,
     PAUSED,
+    BOSS_ENTRANCE,
     BLESSING_SELECT,
     SHOP,
     GAME_OVER,

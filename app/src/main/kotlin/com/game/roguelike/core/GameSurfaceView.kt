@@ -1,6 +1,9 @@
 package com.game.roguelike.core
 
 import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -16,6 +19,7 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         isFocusable = true
         isFocusableInTouchMode = true
         game.inputManager = inputManager
+        game.vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {

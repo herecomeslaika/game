@@ -162,6 +162,10 @@ class IsometricRenderer {
         screenRenderer.drawFade(canvas, alpha)
     }
 
+    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int) {
+        screenRenderer.renderBossEntrance(canvas, bossName, bossTitle, timer, phase, w, h)
+    }
+
     // --- Color utility methods (used by sub-renderers) ---
 
     internal fun darken(color: Int, factor: Float): Int {

@@ -1,6 +1,9 @@
 package com.game.roguelike.core
 
 import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.SurfaceHolder
 import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.blessing.BlessingSelector
@@ -57,8 +60,17 @@ class Game(private val context: Context) {
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
 
+    // Boss entrance animation
+    var bossEntranceTimer = 0f
+    var bossEntrancePhase = 0
+    var bossEntranceName = ""
+    var bossEntranceTitle = ""
+    var pendingBossType: EnemyType? = null
+    var timeScale = 1f
+
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
+    var vibrator: Vibrator? = null
 
     private val TICK = 1f / 60f
     private var accumulator = 0f
@@ -109,9 +121,11 @@ class Game(private val context: Context) {
     }
 
     fun update(dt: Float) {
+        val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
-            GameState.PLAYING -> updatePlaying(dt)
+            GameState.PLAYING -> updatePlaying(scaledDt)
+            GameState.BOSS_ENTRANCE -> updateBossEntrance(dt)
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
             GameState.LAYER_TRANSITION -> updateTransition(dt)
@@ -285,6 +299,45 @@ class Game(private val context: Context) {
         shopUI.update(dt)
     }
 
+    private fun updateBossEntrance(dt: Float) {
+        bossEntranceTimer += dt
+
+        when (bossEntrancePhase) {
+            0 -> {
+                // Phase 0 (0-1.5s): slow-motion + screen shake + short vibration
+                shake(6f, 1.5f)
+                if (bossEntranceTimer < 0.05f) {
+                    vibrate(100)
+                }
+                if (bossEntranceTimer >= 1.5f) {
+                    bossEntrancePhase = 1
+                    bossEntranceTimer = 0f
+                    timeScale = 1f
+                    shake(10f, 2f)
+                    vibrate(300)
+                }
+            }
+            1 -> {
+                // Phase 1 (1.5-3.5s): boss name display + heavy shake
+                if (bossEntranceTimer >= 2f) {
+                    bossEntrancePhase = 2
+                    bossEntranceTimer = 0f
+                    vibrate(50)
+                }
+            }
+            2 -> {
+                // Phase 2 (3.5-4.0s): fade out, restore, spawn boss
+                if (bossEntranceTimer >= 0.5f) {
+                    val room = currentRoom ?: return
+                    room.spawnBoss(this)
+                    pendingBossType = null
+                    timeScale = 1f
+                    gameState = GameState.PLAYING
+                }
+            }
+        }
+    }
+
     private fun updateTransition(dt: Float) {
         if (transitionTarget == null) {
             transitionAlpha += dt * 2f
@@ -336,6 +389,16 @@ class Game(private val context: Context) {
         shakeDuration = duration
     }
 
+    private fun vibrate(durationMs: Long) {
+        val v = vibrator ?: return
+        if (Build.VERSION.SDK_INT >= 26) {
+            v.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(durationMs)
+        }
+    }
+
     private fun checkSpikeDamage(room: Room, dt: Float) {
         val tw = 64f
         val th = 32f
@@ -377,7 +440,21 @@ class Game(private val context: Context) {
                 blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
             RoomType.SHOP -> merchant = Merchant(room.merchantPosition)
-            RoomType.BOSS -> room.spawnBoss(this)
+            RoomType.BOSS -> {
+                val bossType = when (currentLayerIndex) {
+                    0 -> EnemyType.MEGA_SKELETON
+                    1 -> EnemyType.INFERNO_TITAN
+                    2 -> EnemyType.CHAMPION
+                    else -> EnemyType.MEGA_SKELETON
+                }
+                pendingBossType = bossType
+                bossEntranceName = bossType.bossName
+                bossEntranceTitle = bossType.bossTitle
+                bossEntranceTimer = 0f
+                bossEntrancePhase = 0
+                timeScale = 0.2f
+                gameState = GameState.BOSS_ENTRANCE
+            }
             RoomType.EVENT -> {
                 // Random event: heal or blessing
                 if (kotlin.random.Random.nextFloat() < 0.5f) {
@@ -439,6 +516,10 @@ class Game(private val context: Context) {
         currentLayer = Layer(currentLayerIndex)
         currentRoom = currentLayer!!.getCurrentRoom()
         loadRoom(currentRoom!!)
+        timeScale = 1f
+        bossEntranceTimer = 0f
+        bossEntrancePhase = 0
+        pendingBossType = null
         gameState = GameState.PLAYING
     }
 
@@ -476,6 +557,10 @@ class Game(private val context: Context) {
         when (gameState) {
             GameState.MENU -> renderMenu(canvas)
             GameState.PLAYING -> renderPlaying(canvas)
+            GameState.BOSS_ENTRANCE -> {
+                renderPlaying(canvas)
+                renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+            }
             GameState.BLESSING_SELECT -> {
                 renderPlaying(canvas)
                 blessingSelectUI.render(canvas, blessingSelector.currentOffering)

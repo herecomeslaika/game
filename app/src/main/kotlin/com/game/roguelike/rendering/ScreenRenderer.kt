@@ -2,6 +2,7 @@ package com.game.roguelike.rendering
 
 import android.graphics.*
 import kotlin.math.sin
+import kotlin.math.min
 
 class ScreenRenderer(private val renderer: IsometricRenderer) {
 
@@ -73,5 +74,90 @@ class ScreenRenderer(private val renderer: IsometricRenderer) {
         renderer.paint.color = Color.argb((alpha * 255).toInt().coerceIn(0, 255), 0, 0, 0)
         renderer.paint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, renderer.screenWidth.toFloat(), renderer.screenHeight.toFloat(), renderer.paint)
+    }
+
+    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int) {
+        when (phase) {
+            0 -> {
+                // Phase 0: dark overlay fading in
+                val overlayAlpha = min(timer / 1.5f, 1f) * 180f
+                renderer.paint.color = Color.argb(overlayAlpha.toInt(), 5, 2, 15)
+                renderer.paint.style = Paint.Style.FILL
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
+
+                // Center glow
+                if (timer > 0.5f) {
+                    val glowAlpha = min((timer - 0.5f) / 1f, 1f) * 60f
+                    renderer.paint.color = Color.argb(glowAlpha.toInt(), 170, 68, 255)
+                    val glowRadius = 80f + timer * 60f
+                    canvas.drawCircle(w / 2f, h / 2f, glowRadius, renderer.paint)
+                }
+            }
+            1 -> {
+                // Phase 1: dark overlay + boss name with gold outline
+                renderer.paint.color = Color.argb(180, 5, 2, 15)
+                renderer.paint.style = Paint.Style.FILL
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
+
+                // Glow behind name
+                val glowPulse = (sin(timer * 4f) + 1f) * 0.5f
+                renderer.paint.color = Color.argb((40 + glowPulse * 30).toInt(), 170, 68, 255)
+                canvas.drawCircle(w / 2f, h * 0.42f, 120f + glowPulse * 30f, renderer.paint)
+
+                // Boss name — scale from large to normal
+                val nameProgress = min(timer / 0.6f, 1f)
+                val nameScale = 1f + (1f - nameProgress) * 0.8f
+                val nameAlpha = (nameProgress * 255).toInt()
+
+                canvas.save()
+                canvas.scale(nameScale, nameScale, w / 2f, h * 0.42f)
+
+                // Gold outline
+                renderer.titlePaint.color = Color.argb(nameAlpha, 255, 215, 0)
+                renderer.titlePaint.style = Paint.Style.FILL_AND_STROKE
+                renderer.titlePaint.strokeWidth = 4f
+                canvas.drawText(bossName, w / 2f, h * 0.42f, renderer.titlePaint)
+                renderer.titlePaint.style = Paint.Style.FILL
+                renderer.titlePaint.strokeWidth = 0f
+
+                canvas.restore()
+
+                // Title text (subtitle)
+                if (timer > 0.4f) {
+                    val titleProgress = min((timer - 0.4f) / 0.5f, 1f)
+                    val titleAlpha = (titleProgress * 200).toInt()
+                    renderer.subtitlePaint.color = Color.argb(titleAlpha, 170, 130, 200)
+                    canvas.drawText(bossTitle, w / 2f, h * 0.52f, renderer.subtitlePaint)
+                }
+
+                // Decorative lines
+                val lineAlpha = (nameProgress * 120).toInt()
+                renderer.paint.color = Color.argb(lineAlpha, 170, 68, 255)
+                renderer.paint.style = Paint.Style.STROKE
+                renderer.paint.strokeWidth = 2f
+                val lineW = min(timer / 0.8f, 1f) * w * 0.35f
+                canvas.drawLine(w / 2f - lineW, h * 0.47f, w / 2f + lineW, h * 0.47f, renderer.paint)
+                renderer.paint.style = Paint.Style.FILL
+                renderer.paint.strokeWidth = 0f
+            }
+            2 -> {
+                // Phase 2: fade out
+                val fadeOut = min(timer / 0.5f, 1f)
+                val overlayAlpha = 180f * (1f - fadeOut)
+                renderer.paint.color = Color.argb(overlayAlpha.toInt(), 5, 2, 15)
+                renderer.paint.style = Paint.Style.FILL
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
+
+                // Fading name
+                val nameAlpha = ((1f - fadeOut) * 255).toInt()
+                if (nameAlpha > 0) {
+                    renderer.titlePaint.color = Color.argb(nameAlpha, 255, 215, 0)
+                    canvas.drawText(bossName, w / 2f, h * 0.42f, renderer.titlePaint)
+
+                    renderer.subtitlePaint.color = Color.argb((nameAlpha * 0.78f).toInt(), 170, 130, 200)
+                    canvas.drawText(bossTitle, w / 2f, h * 0.52f, renderer.subtitlePaint)
+                }
+            }
+        }
     }
 }

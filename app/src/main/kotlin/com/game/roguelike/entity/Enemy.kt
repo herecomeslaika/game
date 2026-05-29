@@ -20,6 +20,22 @@ enum class EnemyType {
     SHIELD_BEARER, SPEAR_THROWER, CHAMPION
 }
 
+val EnemyType.bossName: String
+    get() = when (this) {
+        EnemyType.MEGA_SKELETON -> "冥骨巨灵"
+        EnemyType.INFERNO_TITAN -> "炼狱泰坦"
+        EnemyType.CHAMPION -> "永恒冠军"
+        else -> ""
+    }
+
+val EnemyType.bossTitle: String
+    get() = when (this) {
+        EnemyType.MEGA_SKELETON -> "塔耳塔洛斯之主"
+        EnemyType.INFERNO_TITAN -> "阿斯福德的烈焰"
+        EnemyType.CHAMPION -> "伊利西昂的荣光"
+        else -> ""
+    }
+
 class Enemy(
     val type: EnemyType,
     spawnPos: Vector2,
