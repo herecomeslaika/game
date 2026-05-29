@@ -105,6 +105,14 @@ class IsometricRenderer {
 
     fun worldToScreen(v: Vector2): Pair<Float, Float> = worldToScreen(v.x, v.y)
 
+    fun screenToGrid(screenX: Float, screenY: Float): Pair<Float, Float> {
+        val adjX = screenX + cameraX - screenWidth / 2f
+        val adjY = screenY + cameraY - screenHeight / 2f
+        val gridX = adjX / (tileWidth / 2f) + adjY / (tileHeight / 2f)
+        val gridY = -adjX / (tileWidth / 2f) + adjY / (tileHeight / 2f)
+        return Pair(gridX, gridY)
+    }
+
     // --- Delegated render calls ---
 
     fun renderRoom(canvas: Canvas, room: Room, playerPos: Vector2, dt: Float) {

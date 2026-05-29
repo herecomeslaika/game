@@ -16,7 +16,22 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         // Attack telegraph effects (drawn before body, in world space)
         drawAttackTelegraphs(canvas, enemy, sx, sy)
 
+        // Death animation: compute progress and apply dissolve effect
+        val isDying = enemy.isDead && !enemy.deathAnimationDone
+        val deathProgress = if (isDying) {
+            1f - (enemy.deathAnimationTimer / enemy.deathAnimationDuration)
+        } else 0f
+
         canvas.save()
+
+        // Death animation: shrink + upward drift
+        if (isDying) {
+            val scale = 1f - deathProgress * 0.6f
+            val driftY = -deathProgress * 15f
+            canvas.scale(scale, scale, sx, sy - enemy.height / 2f)
+            canvas.translate(0f, driftY)
+        }
+
         if (!enemy.facingRight) {
             canvas.scale(-1f, 1f, sx, sy)
         }
@@ -31,8 +46,9 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         val bodyOffset = bob + breathe
         val legSwing = walkSin * 3f * wb
 
-        // Hurt flash
-        val hurtFlash = isHurt && enemy.stateTimer % 0.1f < 0.05f
+        // Hurt flash — or death white flash in first half of death animation
+        val hurtFlash = if (isDying && deathProgress < 0.3f) true
+            else isHurt && enemy.stateTimer % 0.1f < 0.05f
 
         // Phase transition flash
         val phaseFlash = enemy.isPhaseTransitioning
@@ -89,7 +105,8 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         canvas.restore()
 
         // Health bar
-        if (enemy.health < enemy.maxHealth) {
+        // Health bar — skip during death animation
+        if (!isDying && enemy.health < enemy.maxHealth) {
             val barW = enemy.width.toFloat()
             val barH = 4f
             val hpRatio = enemy.health.toFloat() / enemy.maxHealth
@@ -105,11 +122,39 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
             canvas.drawRect(sx - barW / 2, sy - enemy.height - 8f, sx + barW / 2, sy - enemy.height - 8f + barH, renderer.paint)
         }
 
-        // Boss name
-        if (enemy.isBoss) {
+        // Boss name — fade out during death
+        if (enemy.isBoss && !isDying) {
             renderer.textPaint.color = Color.parseColor("#FF6644")
             renderer.textPaint.textSize = 28f
             canvas.drawText(enemy.name, sx - renderer.textPaint.measureText(enemy.name) / 2, sy - enemy.height - 16f, renderer.textPaint)
+        }
+
+        // Death animation: dissolve particles and alpha overlay
+        if (isDying) {
+            // Type-colored dissolve particles
+            val dissolveColor = when (enemy.type) {
+                EnemyType.SKELETON, EnemyType.MEGA_SKELETON -> Color.parseColor("#88AA66")
+                EnemyType.WRAITH -> Color.parseColor("#AA66EE")
+                EnemyType.FLAME_DANCER, EnemyType.LAVA_CASTER, EnemyType.INFERNO_TITAN -> Color.parseColor("#FF6622")
+                EnemyType.SHIELD_BEARER, EnemyType.SPEAR_THROWER, EnemyType.CHAMPION -> Color.parseColor("#6699DD")
+            }
+            val particleAlpha = ((1f - deathProgress) * 200).toInt()
+            val particleSize = 2f + deathProgress * 4f
+            renderer.paint.color = Color.argb(particleAlpha, Color.red(dissolveColor), Color.green(dissolveColor), Color.blue(dissolveColor))
+            renderer.paint.style = Paint.Style.FILL
+            for (i in 0..6) {
+                val px = sx + sin(renderer.globalTime * 5f + i * 1.5f) * (8f + deathProgress * 15f)
+                val py = sy - enemy.height / 2f + cos(renderer.globalTime * 4f + i * 2f) * (10f + deathProgress * 20f) - deathProgress * 20f
+                canvas.drawCircle(px, py, particleSize, renderer.paint)
+            }
+            // Fade overlay (darkens the enemy as it dies)
+            if (deathProgress > 0.3f) {
+                val fadeAlpha = ((deathProgress - 0.3f) / 0.7f * 180).toInt()
+                renderer.paint.color = Color.argb(fadeAlpha, 5, 2, 15)
+                renderer.paint.style = Paint.Style.FILL
+                val fadeScale = 1f - deathProgress * 0.6f
+                canvas.drawCircle(sx, sy - enemy.height / 2f * fadeScale, enemy.width * 2f * fadeScale, renderer.paint)
+            }
         }
     }
 

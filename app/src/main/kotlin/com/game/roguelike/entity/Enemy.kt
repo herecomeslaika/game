@@ -59,6 +59,9 @@ class Enemy(
     var isDead = false
     var deathAnimationDone = false
 
+    var deathAnimationTimer = 0f
+    val deathAnimationDuration = 0.6f
+
     // Shield bearer specific
     var hasShield = false
     var shieldDirection = 1 // 1 = right, -1 = left
@@ -278,7 +281,7 @@ class Enemy(
                 if (health <= 0) {
                     health = 0
                     isDead = true
-                    deathAnimationDone = true
+                    deathAnimationTimer = deathAnimationDuration
                     stateMachine.transitionTo(EnemyState.DEAD)
                 }
                 return
@@ -304,7 +307,7 @@ class Enemy(
         if (health <= 0) {
             health = 0
             isDead = true
-            deathAnimationDone = true
+            deathAnimationTimer = deathAnimationDuration
             stateMachine.transitionTo(EnemyState.DEAD)
 
             // Death particles
@@ -377,7 +380,13 @@ class Enemy(
 
     override fun update(dt: Float, game: Game) {
         if (isDead) {
-            deathAnimationDone = true
+            if (deathAnimationTimer > 0) {
+                deathAnimationTimer -= dt
+                if (deathAnimationTimer <= 0) {
+                    deathAnimationTimer = 0f
+                    deathAnimationDone = true
+                }
+            }
             return
         }
 
@@ -1136,7 +1145,7 @@ class Enemy(
     }
 
     override fun render(canvas: Canvas, renderer: IsometricRenderer) {
-        if (isDead) return
+        if (deathAnimationDone) return
         renderer.renderEnemy(canvas, this)
     }
 }
