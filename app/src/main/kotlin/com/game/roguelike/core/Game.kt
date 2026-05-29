@@ -12,6 +12,8 @@ import com.game.roguelike.core.GodType
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.entity.*
 import com.game.roguelike.level.*
+import com.game.roguelike.network.NetworkFrame
+import com.game.roguelike.network.RoomManager
 import com.game.roguelike.rendering.IsometricRenderer
 import com.game.roguelike.shop.Shop
 import com.game.roguelike.ui.*
@@ -43,6 +45,13 @@ class Game(private val context: Context) {
     var gold = 0
     val blessings = mutableListOf<Blessing>()
     val blessingSelector = BlessingSelector()
+
+    // 联机相关
+    var isMultiplayer = false
+    var isHost = false
+    var localPlayerId = 1
+    val otherPlayer = Player() // 双人模式第二个玩家对象
+    var roomManager: RoomManager? = null
 
     val shop = Shop()
     var merchant: Merchant? = null
@@ -130,6 +139,7 @@ class Game(private val context: Context) {
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
             GameState.LAYER_TRANSITION -> updateTransition(dt)
+            GameState.MULTIPLAYER_LOBBY, GameState.ROOM_LIST, GameState.ROOM_WAITING -> {}
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             else -> {}
         }
@@ -578,6 +588,14 @@ class Game(private val context: Context) {
                 renderPlaying(canvas)
                 renderer.drawFade(canvas, transitionAlpha)
             }
+            GameState.MULTIPLAYER_LOBBY -> screenRenderer.renderMultiplayerLobby(canvas, screenWidth, screenHeight)
+            GameState.ROOM_LIST -> screenRenderer.renderRoomList(canvas, screenWidth, screenHeight, roomManager?.discoveredRooms ?: emptyList())
+            GameState.ROOM_WAITING -> {
+                val rm = roomManager
+                if (rm != null) {
+                    screenRenderer.renderRoomWaiting(canvas, screenWidth, screenHeight, rm)
+                }
+            }
             GameState.GAME_OVER -> renderGameOver(canvas)
             GameState.VICTORY -> renderVictory(canvas)
             else -> {}
@@ -671,11 +689,30 @@ class Game(private val context: Context) {
                 if (screenRenderer.startBtnRect.contains(x, y)) {
                     startNewRun()
                 }
+                // 检查点击联机模式按钮
+                else if (screenRenderer.multiplayerBtnRect.contains(x, y)) {
+                    // 进入联机大厅
+                    gameState = GameState.MULTIPLAYER_LOBBY
+                    roomManager = RoomManager(context)
+                    roomManager?.onGameStart = {
+                        startNewRun()
+                    }
+                    roomManager?.onKicked = {
+                        roomManager?.stop()
+                        roomManager = null
+                        isMultiplayer = false
+                        isHost = false
+                        gameState = GameState.MULTIPLAYER_LOBBY
+                    }
+                    roomManager?.onLobbyUpdated = {
+                        // 大厅玩家列表已更新，renderRoomWaiting 会自动读取最新数据
+                    }
+                }
                 // 检查点击退出游戏按钮
                 else if (screenRenderer.exitBtnRect.contains(x, y)) {
                     // 提示退出游戏，直接关闭Activity
-                val activity = context as android.app.Activity
-                activity.finishAndRemoveTask()
+                    val activity = context as android.app.Activity
+                    activity.finishAndRemoveTask()
                 }
             }
             GameState.BLESSING_SELECT -> {
@@ -700,6 +737,74 @@ class Game(private val context: Context) {
                     // Tap outside items to close
                     shop.close()
                     gameState = GameState.PLAYING
+                }
+            }
+            GameState.MULTIPLAYER_LOBBY -> {
+                if (screenRenderer.createRoomBtnRect.contains(x, y)) {
+                    // 创建房间 → 进入等待状态
+                    roomManager?.createRoom("房间")
+                    isHost = true
+                    isMultiplayer = true
+                    gameState = GameState.ROOM_WAITING
+                } else if (screenRenderer.joinRoomBtnRect.contains(x, y)) {
+                    // 加入房间 — 扫描并进入房间列表
+                    gameState = GameState.ROOM_LIST
+                    roomManager?.scanRooms()
+                } else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    // 返回主菜单
+                    roomManager?.stop()
+                    roomManager = null
+                    gameState = GameState.MENU
+                }
+            }
+            GameState.ROOM_LIST -> {
+                // 检查点击房间列表中的某个房间
+                val rooms = roomManager?.discoveredRooms ?: emptyList()
+                for (i in screenRenderer.roomListRects.indices) {
+                    if (i < rooms.size && screenRenderer.roomListRects[i].contains(x, y)) {
+                        roomManager?.joinRoom(rooms[i])
+                        isMultiplayer = true
+                        gameState = GameState.ROOM_WAITING
+                        break
+                    }
+                }
+                // 返回按钮
+                if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    gameState = GameState.MULTIPLAYER_LOBBY
+                }
+            }
+            GameState.ROOM_WAITING -> {
+                val rm = roomManager ?: return
+                if (rm.isHost) {
+                    // 房主：开始游戏
+                    if (screenRenderer.startGameBtnRect.contains(x, y)) {
+                        rm.startGame()
+                    }
+                    // 房主：踢人
+                    val players = rm.lobbyPlayers
+                    for (i in screenRenderer.kickPlayerBtnRects.indices) {
+                        if (screenRenderer.kickPlayerBtnRects[i].contains(x, y)) {
+                            // 找到非房主玩家对应的索引
+                            val nonHostPlayers = players.filter { !it.isHost }
+                            if (i < nonHostPlayers.size) {
+                                rm.kickPlayer(nonHostPlayers[i].playerId)
+                            }
+                            break
+                        }
+                    }
+                } else {
+                    // 客户端：准备
+                    if (screenRenderer.readyBtnRect.contains(x, y)) {
+                        rm.setReady()
+                    }
+                }
+                // 离开房间
+                if (screenRenderer.leaveRoomBtnRect.contains(x, y)) {
+                    rm.stop()
+                    roomManager = null
+                    isMultiplayer = false
+                    isHost = false
+                    gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
             GameState.GAME_OVER, GameState.VICTORY -> {
