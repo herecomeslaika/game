@@ -173,12 +173,35 @@ class Enemy(
     var dodgeRollDuration = 0f
     var dodgeRollDir = Vector2.ZERO
 
+    // Boss enrage: periodic special attacks in later phases
+    var bossEnrageTimer = 0f
+    var bossEnrageCooldown = 3f
+    var bossSpecialReady = false
+
     // Hurt
     var hurtTimer = 0f
 
-    // Slow/Freeze from Demeter blessings
+    var surroundSlot = -1
     var slowTimer = 0f
     var freezeTimer = 0f
+    var knockbackVx = 0f
+    var knockbackVy = 0f
+
+    fun applyKnockback(vx: Float, vy: Float) {
+        knockbackVx += vx
+        knockbackVy += vy
+    }
+
+    private fun updateKnockback(dt: Float) {
+        if (knockbackVx != 0f || knockbackVy != 0f) {
+            position.x += knockbackVx * dt
+            position.y += knockbackVy * dt
+            knockbackVx *= 0.85f
+            knockbackVy *= 0.85f
+            if (kotlin.math.abs(knockbackVx) < 1f) knockbackVx = 0f
+            if (kotlin.math.abs(knockbackVy) < 1f) knockbackVy = 0f
+        }
+    }
 
     /** Get effective speed considering slow/freeze */
     fun effectiveSpeed(base: Float): Float {
@@ -337,11 +360,11 @@ class Enemy(
     private fun enterNextPhase(game: Game) {
         phase++
         isPhaseTransitioning = true
-        phaseTransitionTimer = 0.5f
+        phaseTransitionTimer = 1.0f // Longer transition for dramatic effect
         // Burst particles
-        for (i in 0..15) {
+        for (i in 0..20) {
             val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
-            val spd = 80f + Random.nextFloat() * 60f
+            val spd = 100f + Random.nextFloat() * 80f
             game.particles.add(Particle(
                 position = Vector2(position.x, position.y),
                 velocity = Vector2(cos(angle) * spd, sin(angle) * spd),
@@ -351,27 +374,103 @@ class Enemy(
                     EnemyType.CHAMPION -> android.graphics.Color.parseColor("#6699FF")
                     else -> android.graphics.Color.WHITE
                 },
-                life = 0.6f,
-                size = 5f
+                life = 0.8f,
+                size = 6f
             ))
         }
-        game.shake(6f, 0.2f)
-        // Type-specific phase changes
+        game.shake(10f, 0.3f)
+        game.audioManager.play("boss_phase")
+        // Type-specific phase changes with new mechanics
         when (type) {
             EnemyType.MEGA_SKELETON -> {
                 when (phase) {
-                    1 -> { canGroundSlam = true; summonCount = 3; summonCooldown = 4f; speed *= 1.4f }
-                    2 -> { attackDamage = (attackDamage * 1.5f).toInt(); summonCount = 4; summonCooldown = 3f }
+                    1 -> {
+                        canGroundSlam = true; summonCount = 3; summonCooldown = 4f; speed *= 1.3f
+                        attackCooldown *= 0.8f // Faster attacks
+                    }
+                    2 -> {
+                        attackDamage = (attackDamage * 1.3f).toInt(); summonCount = 4; summonCooldown = 3f
+                        bossEnrageCooldown = 4f // Periodic ground slam enrage
+                    }
                 }
             }
             EnemyType.INFERNO_TITAN -> {
                 when (phase) {
-                    1 -> { canMeteor = true; speed *= 1.5f; chargeComboMax = 1; meteorCooldown = 4f }
+                    1 -> {
+                        canMeteor = true; speed *= 1.3f; chargeComboMax = 2; meteorCooldown = 5f
+                        attackCooldown *= 0.75f // Faster attacks
+                        bossEnrageCooldown = 5f // Periodic meteor barrage
+                    }
                 }
             }
             EnemyType.CHAMPION -> {
                 when (phase) {
-                    1 -> { canDodgeRoll = true; speed *= 1.6f; shieldThrown = true }
+                    1 -> {
+                        canDodgeRoll = true; speed *= 1.4f; shieldThrown = true
+                        attackDamage = (attackDamage * 1.2f).toInt()
+                        dodgeRollCooldown = 4f // Dodge more frequently
+                        bossEnrageCooldown = 3f // Periodic spear barrage
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+
+    /** Boss enrage: execute a special attack on timer when in later phases */
+    private fun updateBossEnrage(dt: Float, game: Game) {
+        if (!isBoss || phase < 1 || bossEnrageCooldown <= 0f) return
+        bossEnrageTimer += dt
+        if (bossEnrageTimer >= bossEnrageCooldown) {
+            bossEnrageTimer = 0f
+            executeBossEnrageAttack(game)
+        }
+    }
+
+    private fun executeBossEnrageAttack(game: Game) {
+        when (type) {
+            EnemyType.MEGA_SKELETON -> {
+                // Enrage: automatic ground slam without entering ATTACK state
+                if (canGroundSlam && groundSlamTimer <= 0f) {
+                    startGroundSlam()
+                } else if (canSummon && summonTimer <= 0f) {
+                    summonMinions(game)
+                    summonTimer = summonCooldown
+                }
+            }
+            EnemyType.INFERNO_TITAN -> {
+                // Enrage: fire 8 fireballs in all directions
+                for (i in 0..7) {
+                    val angle = i * Math.PI.toFloat() / 4f
+                    val projDir = Vector2(cos(angle), sin(angle))
+                    game.projectiles.add(Projectile(
+                        position = Vector2(position.x + projDir.x * 20f, position.y + projDir.y * 20f),
+                        velocity = projDir * projectileSpeed * 0.7f,
+                        damage = attackDamage.toFloat() * 0.5f,
+                        type = ProjectileType.FIREBALL,
+                        maxRange = 350f,
+                        isEnemyProjectile = true,
+                        angle = projDir.angle
+                    ))
+                }
+                game.shake(4f, 0.1f)
+            }
+            EnemyType.CHAMPION -> {
+                // Enrage: rapid triple spear fan
+                val dir = (game.player.position - position).normalized
+                val baseAngle = atan2(dir.y, dir.x)
+                for (i in -1..1) {
+                    val angle = baseAngle + i * 0.3f
+                    val projDir = Vector2(cos(angle), sin(angle))
+                    game.projectiles.add(Projectile(
+                        position = Vector2(position.x + projDir.x * 15f, position.y + projDir.y * 15f),
+                        velocity = projDir * projectileSpeed,
+                        damage = attackDamage.toFloat() * 0.6f,
+                        type = ProjectileType.SPEAR,
+                        maxRange = 400f,
+                        isEnemyProjectile = true,
+                        angle = projDir.angle
+                    ))
                 }
             }
             else -> {}
@@ -436,6 +535,12 @@ class Enemy(
 
         // Type-specific continuous timers
         updateTypeTimers(dt, game)
+
+        // Boss enrage timer
+        updateBossEnrage(dt, game)
+
+        // Apply knockback
+        updateKnockback(dt)
 
         val distToPlayer = position.distanceTo(game.player.position)
         val toPlayer = game.player.position - position
@@ -540,7 +645,37 @@ class Enemy(
             return
         }
 
-        // Retreat behavior for spear throwers
+        // === Ranged enemies: maintain preferred distance (kiting) ===
+        if (isRanged && !isBoss) {
+            val preferredDist = attackRange * 0.6f
+            val kitingDir: Vector2
+            if (distToPlayer < preferredDist * 0.5f) {
+                // Too close: retreat away from player
+                kitingDir = (position - player.position).normalized
+                position.x += kitingDir.x * effectiveSpeed(speed) * 1.2f * dt
+                position.y += kitingDir.y * effectiveSpeed(speed) * 1.2f * dt
+                if (abs(kitingDir.x) > 0.15f) facingRight = kitingDir.x > 0
+            } else if (distToPlayer > preferredDist * 1.3f) {
+                // Too far: approach but stop at preferred distance
+                kitingDir = toPlayer.normalized
+                position.x += kitingDir.x * effectiveSpeed(speed) * 0.8f * dt
+                position.y += kitingDir.y * effectiveSpeed(speed) * 0.8f * dt
+                if (abs(kitingDir.x) > 0.15f) facingRight = kitingDir.x > 0
+            } else {
+                // At preferred distance: strafe sideways
+                val strafeAngle = atan2(toPlayer.y, toPlayer.x) + Math.PI.toFloat() / 2f * (if (surroundSlot % 2 == 0) 1f else -1f)
+                kitingDir = Vector2(cos(strafeAngle), sin(strafeAngle))
+                position.x += kitingDir.x * effectiveSpeed(speed) * 0.4f * dt
+                position.y += kitingDir.y * effectiveSpeed(speed) * 0.4f * dt
+            }
+            // Ranged enemies can attack while kiting
+            if (distToPlayer <= attackRange && attackCooldownTimer <= 0f) {
+                startPrepareAttack(game, toPlayer)
+            }
+            return
+        }
+
+        // Retreat behavior for spear throwers (boss Champion ranged mode)
         if (type == EnemyType.SPEAR_THROWER && distToPlayer < 80f) {
             isRetreating = true
             val awayDir = (position - player.position).normalized
@@ -610,10 +745,23 @@ class Enemy(
             }
         }
 
-        // Move toward player
-        val dir = toPlayer.normalized
-        position.x += dir.x * speed * dt
-        position.y += dir.y * speed * dt
+        // === Melee enemies: surround positioning ===
+        val moveTarget: Vector2
+        if (surroundSlot >= 0 && !isBoss) {
+            // Move toward assigned surround slot position instead of directly at player
+            val slotAngle = surroundSlot * Math.PI.toFloat() * 2f / 6f // max 6 slots
+            val surroundRadius = 45f // orbit radius around player
+            moveTarget = Vector2(
+                player.position.x + cos(slotAngle) * surroundRadius,
+                player.position.y + sin(slotAngle) * surroundRadius
+            )
+        } else {
+            moveTarget = player.position
+        }
+
+        val dir = (moveTarget - position).normalized
+        position.x += dir.x * effectiveSpeed(speed) * dt
+        position.y += dir.y * effectiveSpeed(speed) * dt
         if (abs(dir.x) > 0.15f) facingRight = dir.x > 0
 
         // Fire trail

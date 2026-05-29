@@ -5,6 +5,8 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.SurfaceHolder
+import com.game.roguelike.R
+import com.game.roguelike.audio.AudioManager
 import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.blessing.BlessingSelector
 import com.game.roguelike.core.GameState
@@ -53,6 +55,8 @@ class Game(private val context: Context) {
     val blessingSelectUI = BlessingSelectUI()
     val shopUI = ShopUI()
 
+    val audioManager = AudioManager(context)
+
     var shakeAmount = 0f
     var shakeDuration = 0f
     var transitionAlpha = 0f
@@ -67,11 +71,29 @@ class Game(private val context: Context) {
     var bossEntranceTitle = ""
     var pendingBossType: EnemyType? = null
     var timeScale = 1f
+    private var hitstopTimer = 0f
+
+    fun triggerHitstop(frames: Int) {
+        hitstopTimer = frames * TICK
+        timeScale = 0f
+    }
+
+    private fun updateHitstop(dt: Float) {
+        if (hitstopTimer > 0f) {
+            hitstopTimer -= dt
+            if (hitstopTimer <= 0f) {
+                hitstopTimer = 0f
+                timeScale = 1f
+            }
+        }
+    }
 
     // Input manager reference - set by GameSurfaceView
     var inputManager: InputManager? = null
     var vibrator: Vibrator? = null
     internal val screenRenderer = renderer.screenRenderer
+
+    private var soundsLoaded = false
 
     private val TICK = 1f / 60f
     private var accumulator = 0f
@@ -81,17 +103,30 @@ class Game(private val context: Context) {
         this.holder = holder
         running = true
         lastTime = System.nanoTime()
+        if (!soundsLoaded) {
+            audioManager.loadSounds(context)
+            soundsLoaded = true
+        }
         gameThread = Thread { gameLoop() }
         gameThread?.start()
     }
 
     fun stop() {
         running = false
+        audioManager.pauseBgm()
         try {
             gameThread?.join()
         } catch (e: InterruptedException) {
             // ignore
         }
+    }
+
+    fun resumeAudio() {
+        audioManager.resumeBgm()
+    }
+
+    fun releaseAudio() {
+        audioManager.release()
     }
 
     fun onScreenResize(width: Int, height: Int) {
@@ -133,6 +168,7 @@ class Game(private val context: Context) {
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             else -> {}
         }
+        updateHitstop(dt)
         updateShake(dt)
         updateParticles(dt)
     }
@@ -191,6 +227,10 @@ class Game(private val context: Context) {
         // Merchant update
         merchant?.update(dt, this)
 
+        // Assign surround slots to melee enemies
+        val meleeEnemies = enemies.filter { !it.isDead && !it.isBoss && !it.isRanged }
+        meleeEnemies.forEachIndexed { i, enemy -> enemy.surroundSlot = i }
+
         // Enemy updates - copy list to avoid ConcurrentModificationException
         // (enemy update can add new enemies via summoning)
         val enemiesToUpdate = enemies.toList()
@@ -203,6 +243,7 @@ class Game(private val context: Context) {
             val enemy = enemyIter.next()
             if (enemy.isDead && enemy.deathAnimationDone) {
                 gold += enemy.goldDrop
+                audioManager.play("enemy_death")
                 // Hades summon: spawn ghost on kill
                 if (player.hasSummon && ghosts.size < 3) {
                     ghosts.add(GhostSummon(enemy.position))
@@ -243,11 +284,9 @@ class Game(private val context: Context) {
             if (enemies.isEmpty()) {
                 room.cleared = true
                 room.unlockDoors()
-                // Boss room grants blessing selection
-                if (room.type == RoomType.BOSS) {
-                    gameState = GameState.BLESSING_SELECT
-                    blessingSelector.generateOffering(currentLayerIndex, blessings)
-                }
+                // Every combat room grants blessing selection
+                gameState = GameState.BLESSING_SELECT
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
         }
 
@@ -432,6 +471,13 @@ class Game(private val context: Context) {
         player.position.set(room.spawnPoint)
         player.velocity.set(Vector2.ZERO)
 
+        // BGM switching
+        when (room.type) {
+            RoomType.BOSS -> audioManager.playBgm(context, R.raw.bgm_boss)
+            RoomType.COMBAT, RoomType.ELITE -> audioManager.playBgm(context, R.raw.bgm_battle)
+            else -> audioManager.stopBgm()
+        }
+
         when (room.type) {
             RoomType.ENTRY -> {}
             RoomType.COMBAT -> room.spawnEnemies(this)
@@ -526,6 +572,7 @@ class Game(private val context: Context) {
         bossEntrancePhase = 0
         pendingBossType = null
         gameState = GameState.PLAYING
+        audioManager.playBgm(context, R.raw.bgm_battle)
     }
 
     fun selectBlessing(blessing: Blessing) {
@@ -533,6 +580,7 @@ class Game(private val context: Context) {
         player.ownedGods.add(blessing.god)
         applyBlessingEffect(blessing, player)
         gameState = GameState.PLAYING
+        audioManager.play("pickup")
     }
 
     private fun applyBlessingEffect(blessing: Blessing, player: Player) {
@@ -704,6 +752,7 @@ class Game(private val context: Context) {
             }
             GameState.GAME_OVER, GameState.VICTORY -> {
                 gameState = GameState.MENU
+                audioManager.stopBgm()
                 inputManager?.reset()
             }
             else -> {}

@@ -291,7 +291,7 @@ class Player : Entity() {
         if (isCrit) dmg *= critMultiplier
         dmg = applyConditionalDamage(dmg, game)
         dealDamageToEnemies(game, dmg, 50f + attackRangeBonus, isCrit)
-        game.shake(if (isCrit) 5f else 3f, 0.08f)
+        game.audioManager.play("attack1")
     }
 
     private fun updateAttack1(dt: Float, game: Game) {
@@ -317,7 +317,7 @@ class Player : Entity() {
         if (isCrit) dmg *= critMultiplier
         dmg = applyConditionalDamage(dmg, game)
         dealDamageToEnemies(game, dmg, 55f + attackRangeBonus, isCrit)
-        game.shake(if (isCrit) 6f else 4f, 0.1f)
+        game.audioManager.play("attack2")
     }
 
     private fun updateAttack2(dt: Float, game: Game) {
@@ -343,7 +343,7 @@ class Player : Entity() {
         if (isCrit) dmg *= critMultiplier
         dmg = applyConditionalDamage(dmg, game)
         dealDamageToEnemies(game, dmg, 70f + attackRangeBonus, isCrit)
-        game.shake(if (isCrit) 8f else 6f, 0.12f)
+        game.audioManager.play("attack3")
     }
 
     private fun updateAttack3(dt: Float, game: Game) {
@@ -461,6 +461,7 @@ class Player : Entity() {
         }
 
         stateMachine.transitionTo(PlayerState.DASH)
+        game.audioManager.play("dash")
     }
 
     private fun updateDash(dt: Float, game: Game) {
@@ -527,6 +528,7 @@ class Player : Entity() {
         hurtTimer = 0.3f
         stateMachine.transitionTo(PlayerState.HURT)
         game.shake(5f, 0.15f)
+        game.audioManager.play("player_hurt")
 
         for (i in 0..5) {
             game.particles.add(Particle(
@@ -551,10 +553,12 @@ class Player : Entity() {
             position.y
         )
 
+        var hitAny = false
         for (enemy in game.enemies) {
             if (enemy.isDead) continue
             val dist = enemy.position.distanceTo(hitCenter)
             if (dist < range) {
+                hitAny = true
                 // Apply boss damage bonus
                 var finalDmg = damage
                 if (enemy.isBoss && bossDamageBonus > 0) finalDmg *= (1f + bossDamageBonus)
@@ -570,6 +574,35 @@ class Player : Entity() {
                 }
 
                 enemy.takeDamage(finalDmg, game)
+
+                // Knockback: push enemy away from player
+                val knockDir = (enemy.position - position).normalized
+                val knockForce = when (comboStep) {
+                    1 -> 60f
+                    2 -> 100f
+                    3 -> 160f
+                    else -> 60f
+                }
+                val critMult = if (isCrit) 1.5f else 1f
+                enemy.applyKnockback(knockDir.x * knockForce * critMult, knockDir.y * knockForce * critMult)
+
+                // Hit spark particles at collision point
+                val sparkCount = if (isCrit) 8 else 5
+                val sparkColor = when {
+                    isCrit -> android.graphics.Color.parseColor("#FF4444")
+                    else -> android.graphics.Color.parseColor("#FFFFFF")
+                }
+                for (i in 0 until sparkCount) {
+                    val angle = kotlin.math.atan2(knockDir.y, knockDir.x) + (kotlin.random.Random.nextFloat() - 0.5f) * 1.2f
+                    val spd = 60f + kotlin.random.Random.nextFloat() * 80f
+                    game.particles.add(Particle(
+                        position = Vector2(enemy.position.x, enemy.position.y),
+                        velocity = Vector2(kotlin.math.cos(angle) * spd, kotlin.math.sin(angle) * spd),
+                        color = sparkColor,
+                        life = 0.25f,
+                        size = if (isCrit) 4f else 3f
+                    ))
+                }
 
                 // Slow on hit (Demeter)
                 if (slowOnHit > 0) {
@@ -633,6 +666,29 @@ class Player : Entity() {
                     }
                 }
             }
+        }
+
+        // Hitstop + enhanced shake on successful hit
+        if (hitAny) {
+            game.audioManager.play("hit")
+            val hitstopFrames = when (comboStep) {
+                1 -> 1
+                2 -> 2
+                3 -> 3
+                else -> 1
+            }
+            game.triggerHitstop(if (isCrit) hitstopFrames + 1 else hitstopFrames)
+            val shakeAmount = when (comboStep) {
+                1 -> if (isCrit) 6f else 4f
+                2 -> if (isCrit) 8f else 6f
+                3 -> if (isCrit) 12f else 9f
+                else -> 4f
+            }
+            val shakeDuration = when (comboStep) {
+                3 -> 0.15f
+                else -> 0.1f
+            }
+            game.shake(shakeAmount, shakeDuration)
         }
     }
 

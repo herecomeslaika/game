@@ -29,6 +29,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         gameView.game.start(gameView.holder)
+        gameView.game.resumeAudio()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        gameView.game.releaseAudio()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
