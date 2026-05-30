@@ -129,6 +129,13 @@ class Player : Entity() {
     var hurtTimer = 0f
     var invincibleTimer = 0f
 
+    // Death animation
+    var deathTimer = 0f
+        private set
+    val deathDuration = 1.2f
+    var deathAnimationDone = false
+        private set
+
     // Movement animation
     private var moveAnimTime = 0f
     var moveAnimPhase = 0f
@@ -140,6 +147,8 @@ class Player : Entity() {
     fun reset() {
         health = maxHealth
         isDead = false
+        deathTimer = 0f
+        deathAnimationDone = false
         position = Vector2(400f, 300f)
         velocity = Vector2.ZERO
         comboStep = 0
@@ -187,7 +196,12 @@ class Player : Entity() {
             PlayerState.SPECIAL -> updateSpecial(dt, game)
             PlayerState.DASH -> updateDash(dt, game)
             PlayerState.HURT -> updateHurt(dt, game)
-            PlayerState.DEAD -> {}
+            PlayerState.DEAD -> {
+                deathTimer += dt
+                if (deathTimer >= deathDuration) {
+                    deathAnimationDone = true
+                }
+            }
             PlayerState.CHARGING -> updateCharging(dt, game)
             PlayerState.WHIRLWIND -> updateWhirlwind(dt, game)
         }
@@ -660,7 +674,33 @@ class Player : Entity() {
         if (health <= 0) {
             health = 0
             isDead = true
+            deathTimer = 0f
             stateMachine.transitionTo(PlayerState.DEAD)
+            game.shake(12f, 0.3f)
+            // Death burst particles
+            for (i in 0..20) {
+                val angle = kotlin.random.Random.nextFloat() * 6.28f
+                val spd = 40f + kotlin.random.Random.nextFloat() * 120f
+                game.particles.add(Particle(
+                    position = Vector2(position.x, position.y),
+                    velocity = Vector2(kotlin.math.cos(angle) * spd, kotlin.math.sin(angle) * spd),
+                    color = android.graphics.Color.parseColor("#FF4444"),
+                    life = 0.8f + kotlin.random.Random.nextFloat() * 0.4f,
+                    size = 3f + kotlin.random.Random.nextFloat() * 3f
+                ))
+            }
+            // Soul particles (white/gold rising)
+            for (i in 0..8) {
+                val angle = kotlin.random.Random.nextFloat() * 6.28f
+                val spd = 20f + kotlin.random.Random.nextFloat() * 40f
+                game.particles.add(Particle(
+                    position = Vector2(position.x + kotlin.math.cos(angle) * 10f, position.y),
+                    velocity = Vector2(kotlin.math.cos(angle) * spd * 0.3f, -spd),
+                    color = android.graphics.Color.parseColor("#FFD700"),
+                    life = 1.0f + kotlin.random.Random.nextFloat() * 0.5f,
+                    size = 2f + kotlin.random.Random.nextFloat() * 2f
+                ))
+            }
         }
     }
 

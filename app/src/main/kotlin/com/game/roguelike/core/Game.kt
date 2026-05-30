@@ -64,6 +64,7 @@ class Game(private val context: Context) {
     var transitionTarget: GameState? = null
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
+    var gameOverFadeAlpha = 0f
 
     // Boss entrance animation
     var bossEntranceTimer = 0f
@@ -167,6 +168,7 @@ class Game(private val context: Context) {
             GameState.SHOP -> updateShop(dt)
             GameState.LAYER_TRANSITION -> updateTransition(dt)
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
+            GameState.PLAYER_DEATH -> updatePlayerDeath(dt)
             else -> {}
         }
         updateHitstop(dt)
@@ -353,9 +355,10 @@ class Game(private val context: Context) {
             }
         }
 
-        // Check player death
-        if (player.isDead) {
-            gameState = GameState.GAME_OVER
+        // Check player death — enter death animation first
+        if (player.isDead && gameState != GameState.PLAYER_DEATH) {
+            gameState = GameState.PLAYER_DEATH
+            gameOverFadeAlpha = 0f
         }
     }
 
@@ -426,6 +429,20 @@ class Game(private val context: Context) {
             if (transitionAlpha <= 0f) {
                 transitionAlpha = 0f
                 gameState = GameState.PLAYING
+            }
+        }
+    }
+
+    private fun updatePlayerDeath(dt: Float) {
+        // Still update player so death animation timer advances
+        player.update(dt, this)
+
+        // Once death animation finishes, fade to game over
+        if (player.deathAnimationDone) {
+            gameOverFadeAlpha += dt * 1.5f
+            if (gameOverFadeAlpha >= 1f) {
+                gameOverFadeAlpha = 1f
+                gameState = GameState.GAME_OVER
             }
         }
     }
@@ -666,6 +683,10 @@ class Game(private val context: Context) {
             }
             GameState.GAME_OVER -> renderGameOver(canvas)
             GameState.VICTORY -> renderVictory(canvas)
+            GameState.PLAYER_DEATH -> {
+                renderPlaying(canvas)
+                renderer.drawFade(canvas, gameOverFadeAlpha)
+            }
             else -> {}
         }
     }

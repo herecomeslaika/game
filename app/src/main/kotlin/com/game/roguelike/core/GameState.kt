@@ -9,7 +9,8 @@ enum class GameState {
     SHOP,
     GAME_OVER,
     VICTORY,
-    LAYER_TRANSITION
+    LAYER_TRANSITION,
+    PLAYER_DEATH
 }
 
 enum class PlayerState {

@@ -5,6 +5,7 @@ import android.graphics.*
 import com.game.roguelike.core.PlayerState
 import com.game.roguelike.entity.Player
 import kotlin.math.sin
+import kotlin.math.cos
 
 class PlayerRenderer(private val renderer: IsometricRenderer, private val context: Context) {
 
@@ -17,9 +18,24 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
         val isDashing = player.isDashing
         val isCharging = player.isCharging
         val isWhirlwinding = player.isWhirlwinding
+        val isDead = player.isDead
+
+        // Death animation: compute progress
+        val deathProgress = if (isDead) {
+            (player.deathTimer / player.deathDuration).coerceIn(0f, 1f)
+        } else 0f
 
         canvas.save()
-        if (!facingRight) {
+
+        // Death animation: lean back, shrink, rise
+        if (isDead) {
+            val leanAngle = deathProgress * 25f  // lean back 25°
+            val scale = 1f - deathProgress * 0.5f  // shrink to 50%
+            canvas.translate(sx, sy)
+            canvas.rotate(-leanAngle)
+            canvas.scale(scale, scale)
+            canvas.translate(-sx, -sy)
+        } else if (!facingRight) {
             canvas.scale(-1f, 1f, sx, sy)
         }
 
@@ -193,8 +209,30 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
 
         canvas.restore()
 
+        // Death dissolve particles and fade overlay
+        if (isDead) {
+            val pAlpha = ((1f - deathProgress) * 200).toInt()
+            val pSize = 2f + deathProgress * 4f
+            // Soul particles (gold/white rising)
+            for (i in 0..6) {
+                val px = sx + sin(renderer.globalTime * 5f + i * 1.5f) * (8f + deathProgress * 15f)
+                val py = sy - player.height / 2f + cos(renderer.globalTime * 4f + i * 2f) * (10f + deathProgress * 20f) - deathProgress * 20f
+                renderer.paint.color = Color.argb(pAlpha, 255, 200, 80)
+                renderer.paint.style = Paint.Style.FILL
+                canvas.drawCircle(px, py, pSize, renderer.paint)
+            }
+            // Fade overlay
+            if (deathProgress > 0.3f) {
+                val fadeAlpha = ((deathProgress - 0.3f) / 0.7f * 160).toInt()
+                renderer.paint.color = Color.argb(fadeAlpha, 5, 2, 15)
+                renderer.paint.style = Paint.Style.FILL
+                val fadeScale = 1f - deathProgress * 0.5f
+                canvas.drawCircle(sx, sy - player.height / 2f * fadeScale, player.width * 2f * fadeScale, renderer.paint)
+            }
+        }
+
         // Health bar above player (not flipped)
-        if (player.health < player.maxHealth) {
+        if (player.health < player.maxHealth && !isDead) {
             val barW = 30f
             val barH = 4f
             val hpRatio = player.health.toFloat() / player.maxHealth
