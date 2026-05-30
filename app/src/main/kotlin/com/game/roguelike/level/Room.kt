@@ -404,15 +404,13 @@ class Room(
             else -> 6
         }
 
+        val spawnTypes = EnemyConfig.spawnTypesForLayer(layerIndex)
+        if (spawnTypes.isEmpty()) return
+
         for (i in 0 until count) {
-            val enemyType = when (layerIndex) {
-                0 -> if (Random.nextFloat() < 0.4f) EnemyType.WRAITH else EnemyType.SKELETON
-                1 -> if (Random.nextFloat() < 0.4f) EnemyType.LAVA_CASTER else EnemyType.FLAME_DANCER
-                2 -> if (Random.nextFloat() < 0.4f) EnemyType.SPEAR_THROWER else EnemyType.SHIELD_BEARER
-                else -> EnemyType.SKELETON
-            }
+            val config = weightedRandom(spawnTypes)
             val pos = randomFloorPosition()
-            game.enemies.add(Enemy(enemyType, pos, layerIndex))
+            game.enemies.add(Enemy(config.type, pos, layerIndex))
         }
     }
 
@@ -424,27 +422,30 @@ class Room(
             else -> 4
         }
 
+        val spawnTypes = EnemyConfig.spawnTypesForLayer(layerIndex)
+        if (spawnTypes.isEmpty()) return
+
         for (i in 0 until count) {
-            val enemyType = when (layerIndex) {
-                0 -> if (Random.nextFloat() < 0.6f) EnemyType.WRAITH else EnemyType.SKELETON
-                1 -> if (Random.nextFloat() < 0.5f) EnemyType.LAVA_CASTER else EnemyType.FLAME_DANCER
-                2 -> if (Random.nextFloat() < 0.5f) EnemyType.SPEAR_THROWER else EnemyType.SHIELD_BEARER
-                else -> EnemyType.SKELETON
-            }
+            val config = weightedRandom(spawnTypes)
             val pos = randomFloorPosition()
-            game.enemies.add(Enemy(enemyType, pos, layerIndex))
+            game.enemies.add(Enemy(config.type, pos, layerIndex))
         }
     }
 
-    fun spawnBoss(game: Game) {
-        val bossType = when (layerIndex) {
-            0 -> EnemyType.MEGA_SKELETON
-            1 -> EnemyType.INFERNO_TITAN
-            2 -> EnemyType.CHAMPION
-            else -> EnemyType.MEGA_SKELETON
+    private fun weightedRandom(configs: List<EnemyConfig>): EnemyConfig {
+        val totalWeight = configs.sumOf { it.spawnWeight.toDouble() }
+        var roll = Random.nextFloat() * totalWeight
+        for (config in configs) {
+            roll -= config.spawnWeight
+            if (roll <= 0) return config
         }
+        return configs.last()
+    }
+
+    fun spawnBoss(game: Game) {
+        val bossConfig = EnemyConfig.bossForLayer(layerIndex) ?: return
         val bossPos = Vector2(width * 32f, height * 16f)
-        game.enemies.add(Enemy(bossType, bossPos, layerIndex, isBoss = true))
+        game.enemies.add(Enemy(bossConfig.type, bossPos, layerIndex, isBoss = true))
     }
 
     /** Find a random floor tile position for spawning */

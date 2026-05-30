@@ -520,12 +520,8 @@ class Game(private val context: Context) {
             }
             RoomType.SHOP -> merchant = Merchant(room.merchantPosition)
             RoomType.BOSS -> {
-                val bossType = when (currentLayerIndex) {
-                    0 -> EnemyType.MEGA_SKELETON
-                    1 -> EnemyType.INFERNO_TITAN
-                    2 -> EnemyType.CHAMPION
-                    else -> EnemyType.MEGA_SKELETON
-                }
+                val bossConfig = com.game.roguelike.entity.EnemyConfig.bossForLayer(currentLayerIndex)
+                val bossType = bossConfig?.type ?: EnemyType.MEGA_SKELETON
                 pendingBossType = bossType
                 bossEntranceName = bossType.bossName
                 bossEntranceTitle = bossType.bossTitle

@@ -8,7 +8,23 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
+typealias EnemyDrawFunc = (canvas: Canvas, sx: Float, sy: Float, bob: Float, legSwing: Float, isMoving: Boolean, isIdle: Boolean, hurtFlash: Boolean, enemy: Enemy, renderer: EnemyRenderer) -> Unit
+
 class EnemyRenderer(private val renderer: IsometricRenderer) {
+
+    private val drawRegistry = mutableMapOf<EnemyType, EnemyDrawFunc>()
+
+    init {
+        drawRegistry[EnemyType.SKELETON] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawSkeleton(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.WRAITH] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawWraith(c, sx, sy, bob, mv, idle, hf) }
+        drawRegistry[EnemyType.MEGA_SKELETON] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawMegaSkeleton(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.FLAME_DANCER] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawFlameDancer(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.LAVA_CASTER] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawLavaCaster(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.INFERNO_TITAN] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawInfernoTitan(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.SHIELD_BEARER] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawShieldBearer(c, sx, sy, bob, ls, mv, idle, hf, e.shieldDirection, e.shieldThrown) }
+        drawRegistry[EnemyType.SPEAR_THROWER] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawSpearThrower(c, sx, sy, bob, ls, mv, idle, hf) }
+        drawRegistry[EnemyType.CHAMPION] = { c, sx, sy, bob, ls, mv, idle, hf, e, r -> r.drawChampion(c, sx, sy, bob, ls, mv, idle, hf, e.shieldThrown) }
+    }
 
     fun renderEnemy(canvas: Canvas, enemy: Enemy) {
         val (sx, sy) = renderer.worldToScreen(enemy.position)
@@ -53,17 +69,10 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         // Phase transition flash
         val phaseFlash = enemy.isPhaseTransitioning
 
-        // Enemy body - drawn by type
-        when (enemy.type) {
-            EnemyType.SKELETON -> drawSkeleton(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.WRAITH -> drawWraith(canvas, sx, sy, bodyOffset, isMoving, isIdle, hurtFlash)
-            EnemyType.MEGA_SKELETON -> drawMegaSkeleton(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.FLAME_DANCER -> drawFlameDancer(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.LAVA_CASTER -> drawLavaCaster(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.INFERNO_TITAN -> drawInfernoTitan(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.SHIELD_BEARER -> drawShieldBearer(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy.shieldDirection, enemy.shieldThrown)
-            EnemyType.SPEAR_THROWER -> drawSpearThrower(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash)
-            EnemyType.CHAMPION -> drawChampion(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy.shieldThrown)
+        // Enemy body - drawn by type via registry
+        val drawFunc = drawRegistry[enemy.type]
+        if (drawFunc != null) {
+            drawFunc(canvas, sx, sy, bodyOffset, legSwing, isMoving, isIdle, hurtFlash, enemy, this)
         }
 
         // Phase transition white flash overlay
@@ -104,7 +113,6 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
 
         canvas.restore()
 
-        // Health bar
         // Health bar — skip during death animation
         if (!isDying && enemy.health < enemy.maxHealth) {
             val barW = enemy.width.toFloat()
@@ -132,12 +140,7 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         // Death animation: dissolve particles and alpha overlay
         if (isDying) {
             // Type-colored dissolve particles
-            val dissolveColor = when (enemy.type) {
-                EnemyType.SKELETON, EnemyType.MEGA_SKELETON -> Color.parseColor("#88AA66")
-                EnemyType.WRAITH -> Color.parseColor("#AA66EE")
-                EnemyType.FLAME_DANCER, EnemyType.LAVA_CASTER, EnemyType.INFERNO_TITAN -> Color.parseColor("#FF6622")
-                EnemyType.SHIELD_BEARER, EnemyType.SPEAR_THROWER, EnemyType.CHAMPION -> Color.parseColor("#6699DD")
-            }
+            val dissolveColor = enemy.config.dissolveColor
             val particleAlpha = ((1f - deathProgress) * 200).toInt()
             val particleSize = 2f + deathProgress * 4f
             renderer.paint.color = Color.argb(particleAlpha, Color.red(dissolveColor), Color.green(dissolveColor), Color.blue(dissolveColor))
