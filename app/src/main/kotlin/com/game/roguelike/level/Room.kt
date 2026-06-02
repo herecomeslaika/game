@@ -23,6 +23,7 @@ class Room(
         const val TILE_LAVA = 6
         const val TILE_WATER = 7
         const val TILE_SPIKE = 8
+        const val TILE_EVENT_SHRINE = 9
     }
 
     var tiles = IntArray(width * height)
@@ -123,7 +124,7 @@ class Room(
                 doors.add(Door(Vector2(0f, (height / 2) * 32f), isLocked = false))
                 doors.add(Door(Vector2((width - 1) * 64f, (height / 2) * 32f), isLocked = false))
                 spawnPoint = Vector2(64f * 2f, (height / 2) * 32f)
-                generateEntryLayout()
+                generateEventLayout()
             }
             RoomType.REST -> {
                 setTile(0, height / 2, TILE_DOOR)
@@ -154,6 +155,23 @@ class Room(
         setTile(cx + 3, cy + 2, TILE_PILLAR)
 
         // Layer-specific floor decoration
+        addLayerTerrain(2, 2, width - 3, height - 3)
+    }
+
+    private fun generateEventLayout() {
+        val cx = width / 2
+        val cy = height / 2
+
+        // Central event shrine
+        setTile(cx, cy, TILE_EVENT_SHRINE)
+
+        // Four pillars around the shrine
+        setTile(cx - 2, cy - 2, TILE_PILLAR)
+        setTile(cx + 2, cy - 2, TILE_PILLAR)
+        setTile(cx - 2, cy + 2, TILE_PILLAR)
+        setTile(cx + 2, cy + 2, TILE_PILLAR)
+
+        // Layer-specific terrain
         addLayerTerrain(2, 2, width - 3, height - 3)
     }
 

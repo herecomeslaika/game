@@ -63,6 +63,10 @@ class TileRenderer(private val renderer: IsometricRenderer) {
                         drawIsometricTile(canvas, sx, sy, theme.floor, theme.floorAlt, col, row)
                         drawIsometricSpike(canvas, sx, sy, theme.accent)
                     }
+                    Room.TILE_EVENT_SHRINE -> {
+                        drawIsometricTile(canvas, sx, sy, theme.floor, theme.floorAlt, col, row)
+                        drawIsometricEventShrine(canvas, sx, sy, theme.accent)
+                    }
                 }
             }
         }
@@ -566,6 +570,52 @@ class TileRenderer(private val renderer: IsometricRenderer) {
         p.style = Paint.Style.FILL
         canvas.drawCircle(sx, sy - 5f, 10f, p)
         p.shader = null
+    }
+
+    private fun drawIsometricEventShrine(canvas: Canvas, sx: Float, sy: Float, color: Int) {
+        val hw = renderer.tileWidth / 2.5f
+        val hh = renderer.tileHeight / 2.5f
+        val height = 24f
+        val pulse = sin(renderer.globalTime * 2f) * 0.3f + 0.7f
+
+        // Base platform
+        reset()
+        p.color = renderer.darken(color, 0.6f)
+        p.style = Paint.Style.FILL
+        val basePath = renderer.obtainPath()
+        basePath.moveTo(sx - hw, sy); basePath.lineTo(sx, sy + hh); basePath.lineTo(sx + hw, sy); basePath.lineTo(sx, sy - hh); basePath.close()
+        canvas.drawPath(basePath, p)
+        renderer.recyclePath(basePath)
+
+        // Shrine body (tapered column)
+        reset()
+        p.color = renderer.lighten(color, 1.1f)
+        p.style = Paint.Style.FILL
+        val bodyW = hw * 0.4f
+        canvas.drawRect(sx - bodyW, sy - height, sx + bodyW, sy, p)
+
+        // Top orb with radial glow
+        val orbY = sy - height - 6f
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, orbY, 8f,
+                Color.argb((255 * pulse).toInt(), Color.red(color), Color.green(color), Color.blue(color)),
+                Color.argb((60 * pulse).toInt(), Color.red(color), Color.green(color), Color.blue(color)))
+        } else {
+            p.color = Color.argb((220 * pulse).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, orbY, 6f, p)
+        p.shader = null
+
+        // Outer glow ring
+        reset()
+        p.color = Color.argb((40 * pulse).toInt(), Color.red(renderer.lighten(color, 1.5f)), Color.green(renderer.lighten(color, 1.5f)), Color.blue(renderer.lighten(color, 1.5f)))
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 2f
+        canvas.drawCircle(sx, orbY, 10f + sin(renderer.globalTime * 3f) * 2f, p)
+        p.style = Paint.Style.FILL
+        p.strokeWidth = 1f
     }
 
     private fun reset() {

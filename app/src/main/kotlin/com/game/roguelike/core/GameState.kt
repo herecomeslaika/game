@@ -3,14 +3,14 @@ package com.game.roguelike.core
 enum class GameState {
     MENU,
     PLAYING,
-    PAUSED,
-    BOSS_ENTRANCE,
-    BLESSING_SELECT,
     SHOP,
-    GAME_OVER,
-    VICTORY,
+    EVENT,
+    BLESSING_SELECT,
     LAYER_TRANSITION,
-    PLAYER_DEATH
+    BOSS_ENTRANCE,
+    PLAYER_DEATH,
+    GAME_OVER,
+    VICTORY
 }
 
 enum class PlayerState {

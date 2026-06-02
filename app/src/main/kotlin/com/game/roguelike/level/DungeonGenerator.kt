@@ -5,7 +5,7 @@ import kotlin.random.Random
 
 data class RoomNode(
     val id: Int,
-    val type: RoomType,
+    var type: RoomType,
     val x: Int,
     val y: Int,
     val connections: MutableList<Int> = mutableListOf(),
@@ -31,7 +31,7 @@ data class FloorMap(
 object DungeonGenerator {
 
     fun generateFloor(floorNum: Int): FloorMap {
-        val depth = 5 + minOf(floorNum, 3)
+        val depth = 9 + minOf(floorNum, 3)  // 9-12 layers — more rooms before boss
         val rng = Random(floorNum * 7919 + 42)
 
         val map = FloorMap()
@@ -122,21 +122,31 @@ object DungeonGenerator {
             }
         }
 
+        // Guarantee at least 1 EVENT per floor — convert a random non-critical room if missing
+        if (map.rooms.none { it.type == RoomType.EVENT }) {
+            val convertible = map.rooms.filter {
+                it.type != RoomType.ENTRY && it.type != RoomType.BOSS && it.type != RoomType.SHOP
+            }
+            if (convertible.isNotEmpty()) {
+                convertible.random(rng).type = RoomType.EVENT
+            }
+        }
+
         return map
     }
 
     private fun pickRoomType(rng: Random, layer: Int, depth: Int, floorNum: Int): RoomType {
-        // Weighted random based on position in floor
+        // Weighted random — EVENT has high weight to ensure frequent encounters
         val roll = rng.nextFloat()
         return when {
-            layer == 1 && roll < 0.4f -> RoomType.COMBAT
+            layer == 1 && roll < 0.3f -> RoomType.COMBAT
             layer >= depth - 2 -> RoomType.COMBAT // always combat before boss
-            roll < 0.35f -> RoomType.COMBAT
-            roll < 0.50f -> RoomType.ELITE        // harder combat
-            roll < 0.65f -> RoomType.REWARD
-            roll < 0.75f -> RoomType.SHOP
-            roll < 0.85f -> RoomType.EVENT         // random event
-            roll < 0.93f -> RoomType.REST          // healing fountain
+            roll < 0.30f -> RoomType.COMBAT
+            roll < 0.42f -> RoomType.ELITE        // harder combat
+            roll < 0.52f -> RoomType.EVENT         // 10% — events are common
+            roll < 0.64f -> RoomType.REWARD
+            roll < 0.74f -> RoomType.SHOP
+            roll < 0.86f -> RoomType.REST          // healing fountain
             else -> RoomType.COMBAT
         }
     }

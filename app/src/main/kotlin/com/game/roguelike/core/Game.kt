@@ -14,6 +14,10 @@ import com.game.roguelike.core.GameState
 import com.game.roguelike.core.GodType
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.entity.*
+import com.game.roguelike.event.GameEvent
+import com.game.roguelike.event.EventPool
+import com.game.roguelike.event.EventEffect
+import com.game.roguelike.event.FateOutcome
 import com.game.roguelike.level.*
 import com.game.roguelike.rendering.IsometricRenderer
 import com.game.roguelike.shop.Shop
@@ -65,6 +69,10 @@ class Game(private val context: Context) {
     var transitionTarget: GameState? = null
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
+    var currentEvent: GameEvent? = null
+    var selectedEventOption: Int = -1
+    var eventResultText: String? = null
+    var eventResultTimer = 0f
     var roomTransitionCooldown = 0f
     var gameOverFadeAlpha = 0f
 
@@ -168,6 +176,7 @@ class Game(private val context: Context) {
             GameState.BOSS_ENTRANCE -> updateBossEntrance(dt)
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
+            GameState.EVENT -> updateEvent(dt)
             GameState.LAYER_TRANSITION -> updateTransition(dt)
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             GameState.PLAYER_DEATH -> updatePlayerDeath(dt)
@@ -373,6 +382,17 @@ class Game(private val context: Context) {
         shopUI.update(dt)
     }
 
+    private fun updateEvent(dt: Float) {
+        if (eventResultTimer > 0f) {
+            eventResultTimer -= dt
+            if (eventResultTimer <= 0f) {
+                currentEvent = null
+                eventResultText = null
+                gameState = GameState.PLAYING
+            }
+        }
+    }
+
     private fun updateBossEntrance(dt: Float) {
         bossEntranceTimer += dt
 
@@ -551,27 +571,11 @@ class Game(private val context: Context) {
                 gameState = GameState.BOSS_ENTRANCE
             }
             RoomType.EVENT -> {
-                // Random event: heal, blessing, or gold
-                val roll = kotlin.random.Random.nextFloat()
-                if (roll < 0.35f) {
-                    player.health = (player.health + (player.maxHealth * 0.2f).toInt()).coerceAtMost(player.maxHealth)
-                } else if (roll < 0.6f) {
-                    val eventGold = 50 + currentLayerIndex * 20
-                    gold += eventGold
-                    // Gold particles
-                    for (i in 0..5) {
-                        particles.add(Particle(
-                            position = Vector2(player.position.x, player.position.y),
-                            velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 80f, -50f),
-                            color = android.graphics.Color.parseColor("#FFD700"),
-                            life = 0.6f,
-                            size = 4f
-                        ))
-                    }
-                } else {
-                    gameState = GameState.BLESSING_SELECT
-                    blessingSelector.generateOffering(currentLayerIndex, blessings)
-                }
+                currentEvent = EventPool.rollEvent(currentLayerIndex)
+                selectedEventOption = -1
+                eventResultText = null
+                eventResultTimer = 0f
+                gameState = GameState.EVENT
             }
             RoomType.REST -> {
                 player.health = (player.health + (player.maxHealth * 0.3f).toInt()).coerceAtMost(player.maxHealth)
@@ -681,6 +685,10 @@ class Game(private val context: Context) {
                     renderPlaying(canvas)
                     shopUI.render(canvas, shop, gold)
                 }
+                GameState.EVENT -> {
+                    renderPlaying(canvas)
+                    renderEvent(canvas)
+                }
                 GameState.LAYER_TRANSITION -> {
                     renderPlaying(canvas)
                     renderer.drawFade(canvas, transitionAlpha)
@@ -769,6 +777,114 @@ class Game(private val context: Context) {
         renderer.renderVictory(canvas, screenWidth, screenHeight)
     }
 
+    private fun renderEvent(canvas: android.graphics.Canvas) {
+        val event = currentEvent ?: return
+        val w = screenWidth.toFloat()
+        val h = screenHeight.toFloat()
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+        // Dark overlay
+        p.color = android.graphics.Color.argb(180, 10, 15, 30)
+        p.style = android.graphics.Paint.Style.FILL
+        canvas.drawRect(0f, 0f, w, h, p)
+
+        // Panel
+        val panelW = 700f
+        val panelX = w / 2f - panelW / 2f
+        val panelY = h * 0.15f
+        val panelBottom = h * 0.85f
+
+        p.color = android.graphics.Color.argb(230, 20, 25, 45)
+        canvas.drawRoundRect(panelX, panelY, panelX + panelW, panelBottom, 12f, 12f, p)
+
+        // Panel border
+        p.color = event.npcColor
+        p.style = android.graphics.Paint.Style.STROKE
+        p.strokeWidth = 3f
+        canvas.drawRoundRect(panelX, panelY, panelX + panelW, panelBottom, 12f, 12f, p)
+
+        // NPC name + description
+        val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = event.npcColor
+            textSize = 40f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText("${event.npcName} — ${event.title}", w / 2f, panelY + 55f, titlePaint)
+
+        val descPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor("#CCCCCC")
+            textSize = 20f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText(event.description, w / 2f, panelY + 85f, descPaint)
+
+        // Options or result
+        if (eventResultText != null) {
+            val resultPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#FFD700")
+                textSize = 32f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                textAlign = android.graphics.Paint.Align.CENTER
+            }
+            canvas.drawText(eventResultText!!, w / 2f, h / 2f, resultPaint)
+
+            val continuePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.parseColor("#AAAAAA")
+                textSize = 24f
+                textAlign = android.graphics.Paint.Align.CENTER
+            }
+            canvas.drawText("点击继续...", w / 2f, h / 2f + 50f, continuePaint)
+        } else {
+            val optionStartY = panelY + 120f
+            val optionHeight = 130f
+            val optionSpacing = 15f
+
+            for (i in event.options.indices) {
+                val option = event.options[i]
+                val oy = optionStartY + i * (optionHeight + optionSpacing)
+
+                // Option card background
+                val isSelected = selectedEventOption == i
+                p.color = if (isSelected) android.graphics.Color.argb(200, 50, 55, 80) else android.graphics.Color.argb(150, 35, 40, 60)
+                p.style = android.graphics.Paint.Style.FILL
+                canvas.drawRoundRect(panelX + 30f, oy, panelX + panelW - 30f, oy + optionHeight, 8f, 8f, p)
+
+                // Option card border
+                p.color = if (isSelected) android.graphics.Color.parseColor("#FFD700") else android.graphics.Color.parseColor("#7788AA")
+                p.style = android.graphics.Paint.Style.STROKE
+                p.strokeWidth = if (isSelected) 3f else 1f
+                canvas.drawRoundRect(panelX + 30f, oy, panelX + panelW - 30f, oy + optionHeight, 8f, 8f, p)
+
+                // Option text
+                val optNamePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.WHITE
+                    textSize = 26f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+                canvas.drawText(option.text, panelX + 55f, oy + 35f, optNamePaint)
+
+                // Cost/reward descriptions
+                val optDescPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    textSize = 18f
+                }
+                optDescPaint.color = android.graphics.Color.parseColor("#FF6666")
+                canvas.drawText("代价: ${option.costDescription}", panelX + 55f, oy + 65f, optDescPaint)
+                optDescPaint.color = android.graphics.Color.parseColor("#66CC66")
+                canvas.drawText("收益: ${option.rewardDescription}", panelX + 55f, oy + 90f, optDescPaint)
+
+                // Selection number
+                val numPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.parseColor("#7788AA")
+                    textSize = 32f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+                canvas.drawText("${i + 1}", panelX + panelW - 70f, oy + 75f, numPaint)
+            }
+        }
+    }
+
     fun handleTouch(x: Float, y: Float) {
         when (gameState) {
             GameState.PLAYING -> {
@@ -827,7 +943,209 @@ class Game(private val context: Context) {
                 audioManager.stopBgm()
                 inputManager?.reset()
             }
+            GameState.EVENT -> handleTouchEvent(x, y)
             else -> {}
+        }
+    }
+
+    private fun handleTouchEvent(x: Float, y: Float) {
+        // If showing result, any tap dismisses
+        if (eventResultText != null) {
+            if (eventResultTimer <= 0f) {
+                currentEvent = null
+                eventResultText = null
+                gameState = GameState.PLAYING
+            }
+            return
+        }
+
+        val event = currentEvent ?: return
+        val w = screenWidth.toFloat()
+        val h = screenHeight.toFloat()
+        val panelW = 700f
+        val panelX = w / 2f - panelW / 2f
+        val panelY = h * 0.15f
+        val optionStartY = panelY + 120f
+        val optionHeight = 130f
+        val optionSpacing = 15f
+
+        for (i in event.options.indices) {
+            val oy = optionStartY + i * (optionHeight + optionSpacing)
+            if (x >= panelX + 30f && x <= panelX + panelW - 30f &&
+                y >= oy && y <= oy + optionHeight
+            ) {
+                applyEventEffect(event.options[i].effect)
+                return
+            }
+        }
+    }
+
+    private fun applyEventEffect(effect: EventEffect) {
+        var resultMsg = ""
+        when (effect) {
+            is EventEffect.LoseHpGiveGold -> {
+                val hpLoss = (player.maxHealth * effect.hpPercent).toInt()
+                player.health = (player.health - hpLoss).coerceAtLeast(1)
+                gold += effect.gold
+                resultMsg = "失去${hpLoss}生命，获得${effect.gold}金币"
+                spawnGoldParticles()
+            }
+            is EventEffect.LoseGoldGiveBlessing -> {
+                if (gold >= effect.gold) {
+                    gold -= effect.gold
+                    gameState = GameState.BLESSING_SELECT
+                    blessingSelector.generateOffering(currentLayerIndex, blessings)
+                    currentEvent = null
+                    eventResultText = null
+                    audioManager.play("pickup")
+                    return
+                } else {
+                    resultMsg = "金币不足! 需要${effect.gold}金币"
+                }
+            }
+            is EventEffect.LoseMaxHpGiveDamage -> {
+                val maxHpLoss = (player.maxHealth * effect.maxHpPercent).toInt()
+                player.maxHealth -= maxHpLoss
+                player.health = player.health.coerceAtMost(player.maxHealth)
+                player.attackDamage1 += effect.damageBonus
+                player.attackDamage2 += effect.damageBonus
+                player.attackDamage3 += effect.damageBonus
+                resultMsg = "最大生命-${maxHpLoss}，攻击+${effect.damageBonus.toInt()}"
+            }
+            is EventEffect.GambleGold -> {
+                val stake = (gold * effect.stakePercent).toInt()
+                if (kotlin.random.Random.nextFloat() < 0.5f) {
+                    gold += stake
+                    resultMsg = "赢了! 获得${stake}金币"
+                    spawnGoldParticles()
+                } else {
+                    gold -= stake
+                    resultMsg = "输了... 失去${stake}金币"
+                }
+            }
+            is EventEffect.RestHeal -> {
+                if (effect.healPercent > 0f) {
+                    val heal = (player.maxHealth * effect.healPercent).toInt()
+                    player.health = (player.health + heal).coerceAtMost(player.maxHealth)
+                    resultMsg = "恢复${heal}生命"
+                } else {
+                    // "do nothing" option — give small consolation gold
+                    gold += 15
+                    resultMsg = "获得15金币"
+                    spawnGoldParticles()
+                }
+            }
+            is EventEffect.RandomBlessingOrCurse -> {
+                gameState = GameState.BLESSING_SELECT
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
+                currentEvent = null
+                eventResultText = null
+                audioManager.play("pickup")
+                return
+            }
+            is EventEffect.UpgradeWeapon -> {
+                player.attackDamage1 += effect.damageBonus
+                player.attackDamage2 += effect.damageBonus
+                player.attackDamage3 += effect.damageBonus
+                resultMsg = "攻击+${effect.damageBonus.toInt()}"
+                audioManager.play("pickup")
+            }
+            is EventEffect.LoseHpGiveBlessing -> {
+                val hpLoss = (player.maxHealth * effect.hpPercent).toInt()
+                player.health = (player.health - hpLoss).coerceAtLeast(1)
+                gameState = GameState.BLESSING_SELECT
+                blessingSelector.generateOffering(currentLayerIndex, blessings)
+                currentEvent = null
+                eventResultText = null
+                return
+            }
+            is EventEffect.SpendGoldGiveDamage -> {
+                if (effect.gold > 0) {
+                    if (gold >= effect.gold) {
+                        gold -= effect.gold
+                        if (effect.damageBonus > 0f) {
+                            player.attackDamage1 += effect.damageBonus
+                            player.attackDamage2 += effect.damageBonus
+                            player.attackDamage3 += effect.damageBonus
+                            resultMsg = "花费${effect.gold}金币，攻击+${effect.damageBonus.toInt()}"
+                        } else {
+                            val heal = (player.maxHealth * 0.5f).toInt()
+                            player.health = (player.health + heal).coerceAtMost(player.maxHealth)
+                            resultMsg = "花费${effect.gold}金币，恢复${heal}生命"
+                        }
+                    } else {
+                        resultMsg = "金币不足!"
+                    }
+                } else {
+                    // Free option with no effect (consolation)
+                    gold += 15
+                    player.speed *= 0.95f
+                    resultMsg = "获得15金币，速度微降"
+                    spawnGoldParticles()
+                }
+            }
+            is EventEffect.FateWheel -> {
+                val outcome = effect.outcomes[kotlin.random.Random.nextInt(effect.outcomes.size)]
+                when (outcome.description) {
+                    "获得30金币" -> { gold += 30; spawnGoldParticles() }
+                    "攻击+3" -> { player.attackDamage1 += 3f; player.attackDamage2 += 3f; player.attackDamage3 += 3f }
+                    "恢复40%生命" -> { val heal = (player.maxHealth * 0.4f).toInt(); player.health = (player.health + heal).coerceAtMost(player.maxHealth) }
+                    "什么都没有" -> {}
+                }
+                resultMsg = "命运之轮: ${outcome.description}"
+            }
+            is EventEffect.LoseAllGoldHealAndDamage -> {
+                val lostGold = gold
+                gold = 0
+                val heal = (player.maxHealth * effect.healPercent).toInt()
+                player.health = (player.health + heal).coerceAtMost(player.maxHealth)
+                player.attackDamage1 += effect.damageBonus
+                player.attackDamage2 += effect.damageBonus
+                player.attackDamage3 += effect.damageBonus
+                resultMsg = "失去${lostGold}金币，恢复${heal}生命，攻击+${effect.damageBonus.toInt()}"
+            }
+            is EventEffect.CoinFlipBlessing -> {
+                if (gold >= effect.gold) {
+                    gold -= effect.gold
+                    if (kotlin.random.Random.nextFloat() < effect.chance) {
+                        player.attackDamage1 += 2f
+                        player.attackDamage2 += 2f
+                        player.attackDamage3 += 2f
+                        resultMsg = "好运! 攻击+2"
+                    } else {
+                        resultMsg = "运气不佳... 失去${effect.gold}金币"
+                    }
+                } else {
+                    resultMsg = "金币不足!"
+                }
+            }
+            is EventEffect.AlchemistExperiment -> {
+                val hpLoss = (player.maxHealth * effect.hpCost).toInt()
+                player.health = (player.health - hpLoss).coerceAtLeast(1)
+                if (kotlin.random.Random.nextFloat() < 0.75f) {
+                    val heal = (player.maxHealth * effect.successHeal).toInt()
+                    player.health = (player.health + heal).coerceAtMost(player.maxHealth)
+                    resultMsg = "药水生效! 恢复${heal}生命"
+                } else {
+                    resultMsg = "药水失败了..."
+                }
+            }
+        }
+
+        eventResultText = resultMsg
+        eventResultTimer = 1.5f
+        audioManager.play("pickup")
+    }
+
+    private fun spawnGoldParticles() {
+        for (i in 0..5) {
+            particles.add(Particle(
+                position = Vector2(player.position.x, player.position.y),
+                velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 80f, -50f),
+                color = android.graphics.Color.parseColor("#FFD700"),
+                life = 0.6f,
+                size = 4f
+            ))
         }
     }
 }
