@@ -12,9 +12,13 @@ import kotlin.math.sin
 
 class EntityRenderer(private val renderer: IsometricRenderer) {
 
+    private val p: Paint get() = renderer.paint
+    private val useShaders: Boolean get() = renderer.enableShaders
+
     fun renderProjectile(canvas: Canvas, proj: Projectile) {
         val (sx, sy) = renderer.worldToScreen(proj.position)
-        renderer.paint.style = Paint.Style.FILL
+        reset()
+        p.style = Paint.Style.FILL
 
         when (proj.type) {
             ProjectileType.KNIFE -> {
@@ -25,101 +29,190 @@ class EntityRenderer(private val renderer: IsometricRenderer) {
                 }
                 canvas.save()
                 canvas.rotate(knifeAngle, sx, sy)
-                // Blade
-                renderer.paint.color = Color.parseColor("#CCCCCC")
-                canvas.drawRect(sx - 8f, sy - 2f, sx + 8f, sy + 2f, renderer.paint)
+                // Blade with gradient
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeLinearGradient(sx - 8f, sy, sx + 8f, sy, Color.parseColor("#EEEEEE"), Color.parseColor("#999999"))
+                } else {
+                    p.color = Color.parseColor("#CCCCCC")
+                }
+                p.style = Paint.Style.FILL
+                val blade = renderer.obtainPath()
+                blade.moveTo(sx - 8f, sy - 2f)
+                blade.lineTo(sx + 6f, sy - 2f)
+                blade.lineTo(sx + 8f, sy)
+                blade.lineTo(sx + 6f, sy + 2f)
+                blade.lineTo(sx - 8f, sy + 2f)
+                blade.close()
+                canvas.drawPath(blade, p)
+                renderer.recyclePath(blade)
+                p.shader = null
                 // Edge highlight
-                renderer.paint.color = Color.parseColor("#EEEEEE")
-                canvas.drawRect(sx - 6f, sy - 1f, sx + 6f, sy, renderer.paint)
+                reset()
+                p.color = Color.parseColor("#FFFFFF")
+                p.style = Paint.Style.STROKE
+                p.strokeWidth = 0.5f
+                canvas.drawLine(sx - 6f, sy - 0.5f, sx + 6f, sy - 0.5f, p)
                 // Handle
-                renderer.paint.color = Color.parseColor("#886633")
-                canvas.drawRect(sx + 6f, sy - 3f, sx + 10f, sy + 3f, renderer.paint)
+                reset()
+                p.color = Color.parseColor("#886633")
+                p.style = Paint.Style.FILL
+                canvas.drawRect(sx + 6f, sy - 3f, sx + 10f, sy + 3f, p)
                 canvas.restore()
-                // Trail
-                renderer.paint.color = Color.argb(80, 200, 200, 255)
-                canvas.drawOval(sx - 10f, sy - 4f, sx + 10f, sy + 4f, renderer.paint)
+                // Trail with gradient
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeRadialGradient(sx, sy, 10f, Color.argb(80, 200, 200, 255), Color.argb(0, 200, 200, 255))
+                } else {
+                    p.color = Color.argb(80, 200, 200, 255)
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawOval(sx - 10f, sy - 4f, sx + 10f, sy + 4f, p)
+                p.shader = null
             }
             ProjectileType.MAGIC_BOLT -> {
-                // Outer glow
-                renderer.paint.color = Color.argb(40, 153, 68, 255)
-                canvas.drawCircle(sx, sy, 8f, renderer.paint)
+                // Outer glow with radial gradient
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeRadialGradient(sx, sy, 10f, Color.argb(60, 153, 68, 255), Color.argb(0, 100, 40, 200))
+                } else {
+                    p.color = Color.argb(40, 153, 68, 255)
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 10f, p)
+                p.shader = null
                 // Core
-                renderer.paint.color = Color.parseColor("#9944FF")
-                canvas.drawCircle(sx, sy, 5f, renderer.paint)
-                // Inner bright
-                renderer.paint.color = Color.parseColor("#CC88FF")
-                canvas.drawCircle(sx, sy, 3f, renderer.paint)
-                // Center
-                renderer.paint.color = Color.parseColor("#EECCFF")
-                canvas.drawCircle(sx, sy, 1.5f, renderer.paint)
+                reset()
+                p.color = Color.parseColor("#9944FF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 5f, p)
+                reset()
+                p.color = Color.parseColor("#CC88FF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 3f, p)
+                reset()
+                p.color = Color.parseColor("#EECCFF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 1.5f, p)
             }
             ProjectileType.FIREBALL -> {
                 // Outer glow
-                renderer.paint.color = Color.argb(40, 255, 68, 0)
-                canvas.drawCircle(sx, sy, 10f, renderer.paint)
-                // Core
-                renderer.paint.color = Color.parseColor("#FF4400")
-                canvas.drawCircle(sx, sy, 7f, renderer.paint)
-                // Mid
-                renderer.paint.color = Color.parseColor("#FFAA00")
-                canvas.drawCircle(sx, sy, 4f, renderer.paint)
-                // Center
-                renderer.paint.color = Color.parseColor("#FFFF44")
-                canvas.drawCircle(sx, sy, 2f, renderer.paint)
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeRadialGradient(sx, sy, 12f, Color.argb(60, 255, 100, 0), Color.argb(0, 255, 68, 0))
+                } else {
+                    p.color = Color.argb(40, 255, 68, 0)
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 12f, p)
+                p.shader = null
+                // Core layers
+                reset()
+                p.color = Color.parseColor("#FF4400")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 7f, p)
+                reset()
+                p.color = Color.parseColor("#FFAA00")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 4f, p)
+                reset()
+                p.color = Color.parseColor("#FFFF44")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 2f, p)
             }
             ProjectileType.SPEAR -> {
                 canvas.save()
                 canvas.rotate(proj.angle, sx, sy)
-                // Shaft
-                renderer.paint.color = Color.parseColor("#886644")
-                canvas.drawRect(sx - 12f, sy - 1.5f, sx + 12f, sy + 1.5f, renderer.paint)
-                // Tip
-                renderer.paint.color = Color.parseColor("#AAAAAA")
-                canvas.drawRect(sx + 10f, sy - 3f, sx + 16f, sy + 3f, renderer.paint)
-                // Tip point
-                renderer.paint.color = Color.parseColor("#CCCCCC")
-                canvas.drawRect(sx + 14f, sy - 1.5f, sx + 18f, sy + 1.5f, renderer.paint)
+                // Shaft with gradient
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeLinearGradient(sx - 12f, sy, sx + 12f, sy, Color.parseColor("#AA8855"), Color.parseColor("#886644"))
+                } else {
+                    p.color = Color.parseColor("#886644")
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawRect(sx - 12f, sy - 1.5f, sx + 12f, sy + 1.5f, p)
+                p.shader = null
+                // Tip with gradient
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeLinearGradient(sx + 10f, sy, sx + 18f, sy, Color.parseColor("#CCCCCC"), Color.parseColor("#888888"))
+                } else {
+                    p.color = Color.parseColor("#AAAAAA")
+                }
+                p.style = Paint.Style.FILL
+                val tip = renderer.obtainPath()
+                tip.moveTo(sx + 10f, sy - 3f)
+                tip.lineTo(sx + 18f, sy)
+                tip.lineTo(sx + 10f, sy + 3f)
+                tip.close()
+                canvas.drawPath(tip, p)
+                renderer.recyclePath(tip)
+                p.shader = null
                 canvas.restore()
             }
             ProjectileType.ZEUS_BOLT -> {
                 // Outer glow
-                renderer.paint.color = Color.argb(50, 68, 170, 255)
-                canvas.drawCircle(sx, sy, 14f, renderer.paint)
-                // Core
-                renderer.paint.color = Color.parseColor("#44AAFF")
-                canvas.drawCircle(sx, sy, 10f, renderer.paint)
-                // Inner
-                renderer.paint.color = Color.parseColor("#88CCFF")
-                canvas.drawCircle(sx, sy, 6f, renderer.paint)
-                // Center
-                renderer.paint.color = Color.parseColor("#FFFFFF")
-                canvas.drawCircle(sx, sy, 3f, renderer.paint)
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeRadialGradient(sx, sy, 16f, Color.argb(70, 68, 170, 255), Color.argb(0, 40, 100, 200))
+                } else {
+                    p.color = Color.argb(50, 68, 170, 255)
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 16f, p)
+                p.shader = null
+                // Core layers
+                reset()
+                p.color = Color.parseColor("#44AAFF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 10f, p)
+                reset()
+                p.color = Color.parseColor("#88CCFF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 6f, p)
+                reset()
+                p.color = Color.parseColor("#FFFFFF")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 3f, p)
                 // Lightning tendrils
-                renderer.paint.color = Color.argb(120, 150, 200, 255)
-                renderer.paint.style = Paint.Style.STROKE
-                renderer.paint.strokeWidth = 2f
+                reset()
+                p.color = Color.argb(120, 150, 200, 255)
+                p.style = Paint.Style.STROKE
+                p.strokeWidth = 2f
                 for (i in 0..3) {
                     val angle = renderer.globalTime * 8f + i * 1.57f
                     val tx = sx + cos(angle) * 12f
                     val ty = sy + sin(angle) * 12f
-                    canvas.drawLine(sx, sy, tx, ty, renderer.paint)
+                    canvas.drawLine(sx, sy, tx, ty, p)
                 }
-                renderer.paint.strokeWidth = 1f
-                renderer.paint.style = Paint.Style.FILL
+                p.strokeWidth = 1f
+                p.style = Paint.Style.FILL
             }
             ProjectileType.METEOR -> {
                 // Outer glow
-                renderer.paint.color = Color.argb(50, 255, 68, 0)
-                canvas.drawCircle(sx, sy, 14f, renderer.paint)
-                // Core
-                renderer.paint.color = Color.parseColor("#FF4400")
-                canvas.drawCircle(sx, sy, 10f, renderer.paint)
-                // Inner
-                renderer.paint.color = Color.parseColor("#FFAA00")
-                canvas.drawCircle(sx, sy, 5f, renderer.paint)
-                // Center
-                renderer.paint.color = Color.parseColor("#FFFF44")
-                canvas.drawCircle(sx, sy, 2f, renderer.paint)
+                reset()
+                if (useShaders) {
+                    p.shader = renderer.makeRadialGradient(sx, sy, 16f, Color.argb(60, 255, 100, 0), Color.argb(0, 255, 68, 0))
+                } else {
+                    p.color = Color.argb(50, 255, 68, 0)
+                }
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 16f, p)
+                p.shader = null
+                // Core layers
+                reset()
+                p.color = Color.parseColor("#FF4400")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 10f, p)
+                reset()
+                p.color = Color.parseColor("#FFAA00")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 5f, p)
+                reset()
+                p.color = Color.parseColor("#FFFF44")
+                p.style = Paint.Style.FILL
+                canvas.drawCircle(sx, sy, 2f, p)
             }
         }
     }
@@ -127,113 +220,187 @@ class EntityRenderer(private val renderer: IsometricRenderer) {
     fun renderParticle(canvas: Canvas, particle: Particle) {
         val (sx, sy) = renderer.worldToScreen(particle.position)
         val alpha = ((particle.life / particle.maxLife) * 255).toInt().coerceIn(0, 255)
-        renderer.paint.color = Color.argb(alpha, Color.red(particle.color), Color.green(particle.color), Color.blue(particle.color))
-        renderer.paint.style = Paint.Style.FILL
-        canvas.drawCircle(sx, sy - particle.heightOffset, particle.size, renderer.paint)
+        reset()
+        if (useShaders && particle.size > 1.5f) {
+            p.shader = renderer.makeRadialGradient(sx, sy - particle.heightOffset, particle.size, Color.argb(alpha, Color.red(particle.color), Color.green(particle.color), Color.blue(particle.color)), Color.argb(alpha / 3, Color.red(particle.color), Color.green(particle.color), Color.blue(particle.color)))
+        } else {
+            p.color = Color.argb(alpha, Color.red(particle.color), Color.green(particle.color), Color.blue(particle.color))
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy - particle.heightOffset, particle.size, p)
+        p.shader = null
     }
 
     fun renderDoor(canvas: Canvas, door: Door, room: Room) {
         val (sx, sy) = renderer.worldToScreen(door.position)
-        renderer.paint.style = Paint.Style.FILL
-
-        if (door.isLocked) {
-            renderer.paint.color = Color.argb(100, 100, 100, 100)
-        } else {
-            renderer.paint.color = Color.argb(180, 255, 215, 0)
-        }
+        reset()
+        p.style = Paint.Style.FILL
+        p.color = if (door.isLocked) Color.argb(100, 100, 100, 100) else Color.argb(180, 255, 215, 0)
 
         // Door arch
         val hw = renderer.tileWidth / 2f
-        val hh = renderer.tileHeight / 2f
-        val path = Path().apply {
-            moveTo(sx - hw / 2, sy)
-            lineTo(sx - hw / 2, sy - 30f)
-            quadTo(sx, sy - 42f, sx + hw / 2, sy - 30f)
-            lineTo(sx + hw / 2, sy)
-            close()
-        }
-        canvas.drawPath(path, renderer.paint)
+        val path = renderer.obtainPath()
+        path.moveTo(sx - hw / 2, sy)
+        path.lineTo(sx - hw / 2, sy - 30f)
+        path.quadTo(sx, sy - 42f, sx + hw / 2, sy - 30f)
+        path.lineTo(sx + hw / 2, sy)
+        path.close()
+        canvas.drawPath(path, p)
+        renderer.recyclePath(path)
 
         // Door frame
-        renderer.paint.color = Color.argb(120, 139, 90, 43)
-        renderer.paint.style = Paint.Style.STROKE
-        renderer.paint.strokeWidth = 2f
-        canvas.drawPath(path, renderer.paint)
-        renderer.paint.strokeWidth = 1f
+        reset()
+        p.color = Color.argb(120, 139, 90, 43)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 2f
+        canvas.drawPath(path, p)
+        p.strokeWidth = 1f
 
         if (!door.isLocked) {
-            // Glow effect
+            // Glow effect with radial gradient
             val glowPulse = (sin(renderer.globalTime * 3f) * 0.3f + 0.7f)
-            renderer.paint.color = Color.argb((50 * glowPulse).toInt(), 255, 215, 0)
-            renderer.paint.style = Paint.Style.FILL
-            canvas.drawCircle(sx, sy - 15f, 22f, renderer.paint)
+            reset()
+            if (useShaders) {
+                p.shader = renderer.makeRadialGradient(sx, sy - 15f, 22f, Color.argb((60 * glowPulse).toInt(), 255, 215, 0), Color.argb(0, 255, 215, 0))
+            } else {
+                p.color = Color.argb((50 * glowPulse).toInt(), 255, 215, 0)
+            }
+            p.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - 15f, 22f, p)
+            p.shader = null
             // Door rune
-            renderer.paint.color = Color.argb((150 * glowPulse).toInt(), 255, 200, 50)
-            canvas.drawCircle(sx, sy - 15f, 4f, renderer.paint)
+            reset()
+            p.color = Color.argb((150 * glowPulse).toInt(), 255, 200, 50)
+            p.style = Paint.Style.FILL
+            canvas.drawCircle(sx, sy - 15f, 4f, p)
         }
     }
 
     fun renderMerchant(canvas: Canvas, merchant: Merchant, isNearPlayer: Boolean = false) {
         val (sx, sy) = renderer.worldToScreen(merchant.position)
-
-        renderer.paint.style = Paint.Style.FILL
+        reset()
         val breathe = sin(renderer.globalTime * 2f) * 1f
 
         // Legs
-        renderer.paint.color = Color.parseColor("#664411")
-        canvas.drawRect(sx - 6f, sy - 4f, sx - 1f, sy + 6f, renderer.paint)
-        canvas.drawRect(sx + 1f, sy - 4f, sx + 6f, sy + 6f, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#664411")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 6f, sy - 4f, sx - 1f, sy + 6f, p)
+        canvas.drawRect(sx + 1f, sy - 4f, sx + 6f, sy + 6f, p)
         // Boots
-        renderer.paint.color = Color.parseColor("#553311")
-        canvas.drawRect(sx - 7f, sy + 4f, sx - 1f, sy + 8f, renderer.paint)
-        canvas.drawRect(sx + 1f, sy + 4f, sx + 7f, sy + 8f, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#553311")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 7f, sy + 4f, sx - 1f, sy + 8f, p)
+        canvas.drawRect(sx + 1f, sy + 4f, sx + 7f, sy + 8f, p)
 
-        // Body
-        renderer.paint.color = Color.parseColor("#885522")
-        canvas.drawRect(sx - 8f, sy - 30f + breathe, sx + 8f, sy - 4f + breathe, renderer.paint)
+        // Body with gradient
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeLinearGradient(sx - 8f, sy - 30f + breathe, sx + 8f, sy - 4f + breathe, renderer.lighten(Color.parseColor("#885522"), 1.1f), renderer.darken(Color.parseColor("#885522"), 0.7f))
+        } else {
+            p.color = Color.parseColor("#885522")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 8f, sy - 30f + breathe, sx + 8f, sy - 4f + breathe, p)
+        p.shader = null
         // Vest
-        renderer.paint.color = Color.parseColor("#996633")
-        canvas.drawRect(sx - 6f, sy - 28f + breathe, sx + 6f, sy - 12f + breathe, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#996633")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 6f, sy - 28f + breathe, sx + 6f, sy - 12f + breathe, p)
         // Belt
-        renderer.paint.color = Color.parseColor("#553311")
-        canvas.drawRect(sx - 8f, sy - 8f + breathe, sx + 8f, sy - 4f + breathe, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#553311")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 8f, sy - 8f + breathe, sx + 8f, sy - 4f + breathe, p)
         // Belt pouch
-        renderer.paint.color = Color.parseColor("#776633")
-        canvas.drawCircle(sx + 6f, sy - 6f + breathe, 3f, renderer.paint)
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx + 6f, sy - 6f + breathe, 4f, renderer.lighten(Color.parseColor("#776633"), 1.2f), Color.parseColor("#776633"))
+        } else {
+            p.color = Color.parseColor("#776633")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx + 6f, sy - 6f + breathe, 3f, p)
+        p.shader = null
 
         // Backpack
-        renderer.paint.color = Color.parseColor("#557733")
-        canvas.drawRect(sx - 14f, sy - 28f + breathe, sx - 8f, sy - 10f + breathe, renderer.paint)
-        // Backpack strap
-        renderer.paint.color = Color.parseColor("#446622")
-        canvas.drawRect(sx - 12f, sy - 28f + breathe, sx - 10f, sy - 10f + breathe, renderer.paint)
-        // Backpack items peeking
-        renderer.paint.color = Color.parseColor("#FFD700")
-        canvas.drawCircle(sx - 11f, sy - 24f + breathe, 2f, renderer.paint)
-        renderer.paint.color = Color.parseColor("#FF4444")
-        canvas.drawCircle(sx - 11f, sy - 18f + breathe, 2f, renderer.paint)
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeLinearGradient(sx - 14f, sy - 28f + breathe, sx - 8f, sy - 10f + breathe, renderer.lighten(Color.parseColor("#557733"), 1.1f), renderer.darken(Color.parseColor("#557733"), 0.7f))
+        } else {
+            p.color = Color.parseColor("#557733")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 14f, sy - 28f + breathe, sx - 8f, sy - 10f + breathe, p)
+        p.shader = null
+        reset()
+        p.color = Color.parseColor("#446622")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 12f, sy - 28f + breathe, sx - 10f, sy - 10f + breathe, p)
+        // Backpack items
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx - 11f, sy - 24f + breathe, 3f, Color.parseColor("#FFE44D"), Color.parseColor("#DAA520"))
+        } else {
+            p.color = Color.parseColor("#FFD700")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx - 11f, sy - 24f + breathe, 2f, p)
+        p.shader = null
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx - 11f, sy - 18f + breathe, 3f, Color.parseColor("#FF6666"), Color.parseColor("#CC0000"))
+        } else {
+            p.color = Color.parseColor("#FF4444")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx - 11f, sy - 18f + breathe, 2f, p)
+        p.shader = null
 
         // Arms
-        renderer.paint.color = Color.parseColor("#885522")
-        canvas.drawRect(sx + 8f, sy - 26f + breathe, sx + 12f, sy - 12f + breathe, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#885522")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx + 8f, sy - 26f + breathe, sx + 12f, sy - 12f + breathe, p)
 
-        // Head
-        renderer.paint.color = Color.parseColor("#FFCC99")
-        canvas.drawCircle(sx, sy - 36f + breathe, 7f, renderer.paint)
-        // Hat
-        renderer.paint.color = Color.parseColor("#663300")
-        canvas.drawRect(sx - 10f, sy - 46f + breathe, sx + 10f, sy - 40f + breathe, renderer.paint)
-        canvas.drawRect(sx - 6f, sy - 52f + breathe, sx + 6f, sy - 46f + breathe, renderer.paint)
-        // Hat brim detail
-        renderer.paint.color = Color.parseColor("#552200")
-        canvas.drawRect(sx - 10f, sy - 42f + breathe, sx + 10f, sy - 40f + breathe, renderer.paint)
+        // Head with spherical shading
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx - 1f, sy - 38f + breathe, 8f, renderer.lighten(Color.parseColor("#FFCC99"), 1.1f), renderer.darken(Color.parseColor("#FFCC99"), 0.7f))
+        } else {
+            p.color = Color.parseColor("#FFCC99")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy - 36f + breathe, 7f, p)
+        p.shader = null
+        // Hat with gradient
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeLinearGradient(sx - 10f, sy - 52f + breathe, sx + 10f, sy - 40f + breathe, renderer.lighten(Color.parseColor("#663300"), 1.1f), renderer.darken(Color.parseColor("#663300"), 0.7f))
+        } else {
+            p.color = Color.parseColor("#663300")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 10f, sy - 46f + breathe, sx + 10f, sy - 40f + breathe, p)
+        canvas.drawRect(sx - 6f, sy - 52f + breathe, sx + 6f, sy - 46f + breathe, p)
+        p.shader = null
+        reset()
+        p.color = Color.parseColor("#552200")
+        p.style = Paint.Style.FILL
+        canvas.drawRect(sx - 10f, sy - 42f + breathe, sx + 10f, sy - 40f + breathe, p)
         // Eyes
-        renderer.paint.color = Color.parseColor("#443322")
-        canvas.drawCircle(sx - 3f, sy - 37f + breathe, 1.5f, renderer.paint)
-        canvas.drawCircle(sx + 3f, sy - 37f + breathe, 1.5f, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#443322")
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx - 3f, sy - 37f + breathe, 1.5f, p)
+        canvas.drawCircle(sx + 3f, sy - 37f + breathe, 1.5f, p)
         // Smile
-        renderer.paint.color = Color.parseColor("#CC8866")
-        canvas.drawPoint(sx, sy - 33f + breathe, renderer.paint)
+        reset()
+        p.color = Color.parseColor("#CC8866")
+        p.style = Paint.Style.FILL
+        canvas.drawPoint(sx, sy - 33f + breathe, p)
 
         // Interaction indicator
         val bounce = sin(renderer.globalTime * 4f) * 3f
@@ -248,5 +415,9 @@ class EntityRenderer(private val renderer: IsometricRenderer) {
             renderer.textPaint.textAlign = Paint.Align.CENTER
             canvas.drawText("!", sx, sy - 55f + bounce, renderer.textPaint)
         }
+    }
+
+    private fun reset() {
+        renderer.resetPaint()
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import android.view.SurfaceHolder
 import com.game.roguelike.R
 import com.game.roguelike.audio.AudioManager
@@ -64,6 +65,7 @@ class Game(private val context: Context) {
     var transitionTarget: GameState? = null
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
+    var roomTransitionCooldown = 0f
     var gameOverFadeAlpha = 0f
 
     // Boss entrance animation
@@ -182,6 +184,7 @@ class Game(private val context: Context) {
     }
 
     private fun updatePlaying(dt: Float) {
+        if (roomTransitionCooldown > 0f) roomTransitionCooldown -= dt
         val room = currentRoom ?: return
         val input = inputManager ?: return
 
@@ -660,34 +663,38 @@ class Game(private val context: Context) {
     }
 
     private fun renderFrame(canvas: android.graphics.Canvas) {
-        canvas.drawColor(android.graphics.Color.BLACK)
+        try {
+            canvas.drawColor(android.graphics.Color.BLACK)
 
-        when (gameState) {
-            GameState.MENU -> renderMenu(canvas)
-            GameState.PLAYING -> renderPlaying(canvas)
-            GameState.BOSS_ENTRANCE -> {
-                renderPlaying(canvas)
-                renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+            when (gameState) {
+                GameState.MENU -> renderMenu(canvas)
+                GameState.PLAYING -> renderPlaying(canvas)
+                GameState.BOSS_ENTRANCE -> {
+                    renderPlaying(canvas)
+                    renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                }
+                GameState.BLESSING_SELECT -> {
+                    renderPlaying(canvas)
+                    blessingSelectUI.render(canvas, blessingSelector.currentOffering)
+                }
+                GameState.SHOP -> {
+                    renderPlaying(canvas)
+                    shopUI.render(canvas, shop, gold)
+                }
+                GameState.LAYER_TRANSITION -> {
+                    renderPlaying(canvas)
+                    renderer.drawFade(canvas, transitionAlpha)
+                }
+                GameState.GAME_OVER -> renderGameOver(canvas)
+                GameState.VICTORY -> renderVictory(canvas)
+                GameState.PLAYER_DEATH -> {
+                    renderPlaying(canvas)
+                    renderer.drawFade(canvas, gameOverFadeAlpha)
+                }
+                else -> {}
             }
-            GameState.BLESSING_SELECT -> {
-                renderPlaying(canvas)
-                blessingSelectUI.render(canvas, blessingSelector.currentOffering)
-            }
-            GameState.SHOP -> {
-                renderPlaying(canvas)
-                shopUI.render(canvas, shop, gold)
-            }
-            GameState.LAYER_TRANSITION -> {
-                renderPlaying(canvas)
-                renderer.drawFade(canvas, transitionAlpha)
-            }
-            GameState.GAME_OVER -> renderGameOver(canvas)
-            GameState.VICTORY -> renderVictory(canvas)
-            GameState.PLAYER_DEATH -> {
-                renderPlaying(canvas)
-                renderer.drawFade(canvas, gameOverFadeAlpha)
-            }
-            else -> {}
+        } catch (e: Exception) {
+            android.util.Log.e("Game", "Render error", e)
         }
     }
 
