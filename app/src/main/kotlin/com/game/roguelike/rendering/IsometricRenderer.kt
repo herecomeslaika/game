@@ -44,6 +44,38 @@ class IsometricRenderer(val context: Context) {
     // Global animation time for ambient effects
     internal var globalTime = 0f
 
+    // Shader/gradient toggle for low-end devices
+    internal var enableShaders = true
+
+    // Path object pool to reduce GC pressure
+    private val pathPool = ArrayDeque<Path>(32)
+
+    internal fun obtainPath(): Path {
+        return if (pathPool.isNotEmpty()) {
+            val p = pathPool.removeFirst()
+            p.reset()
+            p
+        } else {
+            Path()
+        }
+    }
+
+    internal fun recyclePath(p: Path) {
+        if (pathPool.size < 64) pathPool.addLast(p)
+    }
+
+    // Reset paint to safe defaults (clear shader, restore fill style)
+    internal fun resetPaint() {
+        paint.shader = null
+        paint.style = Paint.Style.FILL
+        paint.strokeWidth = 1f
+        paint.strokeCap = Paint.Cap.BUTT
+    }
+
+    // Light sources for ambient glow effects
+    data class LightSource(val x: Float, val y: Float, val radius: Float, val color: Int, val intensity: Float)
+    internal val lightSources = mutableListOf<LightSource>()
+
     // Layer color themes
     internal val layerColors = arrayOf(
         LayerTheme(
@@ -178,10 +210,23 @@ class IsometricRenderer(val context: Context) {
     }
 
     internal fun lighten(color: Int, factor: Float): Int {
-        val r = (Color.red(color) * factor).toInt().coerceIn(0, 255)
-        val g = (Color.green(color) * factor).toInt().coerceIn(0, 255)
-        val b = (Color.blue(color) * factor).toInt().coerceIn(0, 255)
+        val r = kotlin.math.min(255, (Color.red(color) + (255 - Color.red(color)) * (factor - 1f)).toInt())
+        val g = kotlin.math.min(255, (Color.green(color) + (255 - Color.green(color)) * (factor - 1f)).toInt())
+        val b = kotlin.math.min(255, (Color.blue(color) + (255 - Color.blue(color)) * (factor - 1f)).toInt())
         return Color.rgb(r, g, b)
+    }
+
+    // Create gradient helpers (with safety checks to prevent crashes)
+    internal fun makeLinearGradient(x0: Float, y0: Float, x1: Float, y1: Float, c0: Int, c1: Int): LinearGradient {
+        // LinearGradient throws if both points are the same — nudge slightly
+        if (x0 == x1 && y0 == y1) return LinearGradient(x0, y0, x0 + 0.01f, y0, c0, c1, Shader.TileMode.CLAMP)
+        return LinearGradient(x0, y0, x1, y1, c0, c1, Shader.TileMode.CLAMP)
+    }
+
+    internal fun makeRadialGradient(cx: Float, cy: Float, radius: Float, centerColor: Int, edgeColor: Int): RadialGradient {
+        // RadialGradient throws if radius <= 0 — clamp to minimum
+        val safeRadius = if (radius > 0.01f) radius else 0.01f
+        return RadialGradient(cx, cy, safeRadius, centerColor, edgeColor, Shader.TileMode.CLAMP)
     }
 
     data class LayerTheme(
