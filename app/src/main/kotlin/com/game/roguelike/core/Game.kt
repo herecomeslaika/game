@@ -24,6 +24,7 @@ import com.game.roguelike.shop.Shop
 import com.game.roguelike.ui.ShopTouchResult
 import com.game.roguelike.ui.*
 import com.game.roguelike.util.Vector2
+import com.game.roguelike.network.RoomManager
 import kotlin.math.min
 
 class Game(private val context: Context) {
@@ -62,6 +63,7 @@ class Game(private val context: Context) {
     val shopUI = ShopUI()
 
     val audioManager = AudioManager(context)
+    val roomManager = RoomManager(context)
 
     var shakeAmount = 0f
     var shakeDuration = 0f
@@ -119,6 +121,12 @@ class Game(private val context: Context) {
             audioManager.loadSounds(context)
             soundsLoaded = true
         }
+        
+        // 设置 RoomManager 回调
+        roomManager.onGameStart = {
+            gameState = GameState.PLAYING
+        }
+        
         gameThread = Thread { gameLoop() }
         gameThread?.start()
     }
@@ -172,6 +180,9 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
+            GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
+            GameState.ROOM_LIST -> updateRoomList(dt)
+            GameState.ROOM_WAITING -> updateRoomWaiting(dt)
             GameState.PLAYING -> updatePlaying(scaledDt)
             GameState.BOSS_ENTRANCE -> updateBossEntrance(dt)
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
@@ -190,6 +201,18 @@ class Game(private val context: Context) {
 
     private fun updateMenu(dt: Float) {
         // Waiting for tap input via handleTouch
+    }
+
+    private fun updateMultiplayerLobby(dt: Float) {
+        // Waiting for tap input via handleTouch in multiplayer lobby
+    }
+
+    private fun updateRoomList(dt: Float) {
+        // Waiting for tap input via handleTouch to join a room
+    }
+
+    private fun updateRoomWaiting(dt: Float) {
+        // Waiting for game start or players to join
     }
 
     private fun updatePlaying(dt: Float) {
@@ -672,6 +695,9 @@ class Game(private val context: Context) {
 
             when (gameState) {
                 GameState.MENU -> renderMenu(canvas)
+                GameState.MULTIPLAYER_LOBBY -> renderMultiplayerLobby(canvas)
+                GameState.ROOM_LIST -> renderRoomList(canvas)
+                GameState.ROOM_WAITING -> renderRoomWaiting(canvas)
                 GameState.PLAYING -> renderPlaying(canvas)
                 GameState.BOSS_ENTRANCE -> {
                     renderPlaying(canvas)
@@ -708,6 +734,18 @@ class Game(private val context: Context) {
 
     private fun renderMenu(canvas: android.graphics.Canvas) {
         renderer.renderMenu(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderMultiplayerLobby(canvas: android.graphics.Canvas) {
+        renderer.renderMultiplayerLobby(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderRoomList(canvas: android.graphics.Canvas) {
+        renderer.renderRoomList(canvas, screenWidth, screenHeight, roomManager.discoveredRooms)
+    }
+
+    private fun renderRoomWaiting(canvas: android.graphics.Canvas) {
+        renderer.renderRoomWaiting(canvas, screenWidth, screenHeight, roomManager)
     }
 
     private fun renderPlaying(canvas: android.graphics.Canvas) {
@@ -901,11 +939,66 @@ class Game(private val context: Context) {
                 if (screenRenderer.startBtnRect.contains(x, y)) {
                     startNewRun()
                 }
+                // 检查点击联机模式按钮
+                else if (screenRenderer.multiplayerBtnRect.contains(x, y)) {
+                    gameState = GameState.MULTIPLAYER_LOBBY
+                }
                 // 检查点击退出游戏按钮
                 else if (screenRenderer.exitBtnRect.contains(x, y)) {
                     // 提示退出游戏，直接关闭Activity
                 val activity = context as android.app.Activity
                 activity.finishAndRemoveTask()
+                }
+            }
+            GameState.MULTIPLAYER_LOBBY -> {
+                // 检查点击创建房间按钮
+                if (screenRenderer.createRoomBtnRect.contains(x, y)) {
+                    val code = roomManager.createRoom("房间")
+                    android.util.Log.d("Game", "创建房间，房间码：$code")
+                    gameState = GameState.ROOM_WAITING
+                }
+                // 检查点击加入房间按钮
+                else if (screenRenderer.joinRoomBtnRect.contains(x, y)) {
+                    android.util.Log.d("Game", "开始扫描房间")
+                    roomManager.scanRooms()
+                    gameState = GameState.ROOM_LIST
+                }
+                // 检查点击返回主菜单按钮
+                else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    gameState = GameState.MENU
+                    inputManager?.reset()
+                }
+            }
+            GameState.ROOM_LIST -> {
+                // 检查点击房间列表中的房间
+                var clicked = false
+                roomManager.discoveredRooms.forEachIndexed { index, room ->
+                    if (index < screenRenderer.roomListRects.size && 
+                        screenRenderer.roomListRects[index].contains(x, y)) {
+                        roomManager.joinRoom(room)
+                        gameState = GameState.ROOM_WAITING
+                        clicked = true
+                    }
+                }
+                // 检查点击返回按钮
+                if (!clicked && screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    roomManager.stop()
+                    gameState = GameState.MULTIPLAYER_LOBBY
+                }
+            }
+            GameState.ROOM_WAITING -> {
+                // 检查点击准备按钮（客户端）
+                if (!roomManager.isHost && screenRenderer.readyBtnRect.contains(x, y)) {
+                    roomManager.setReady()
+                }
+                // 检查点击开始游戏按钮（房主）
+                if (roomManager.isHost && screenRenderer.startGameBtnRect.contains(x, y)) {
+                    roomManager.startGame()
+                }
+                // 检查点击离开房间按钮
+                if (screenRenderer.leaveRoomBtnRect.contains(x, y)) {
+                    roomManager.stop()
+                    gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
             GameState.BLESSING_SELECT -> {

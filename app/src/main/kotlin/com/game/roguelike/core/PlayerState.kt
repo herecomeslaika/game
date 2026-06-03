@@ -9,5 +9,7 @@ enum class PlayerState {
     SPECIAL,
     DASH,
     HURT,
-    DEAD
+    DEAD,
+    CHARGING,
+    WHIRLWIND
 }

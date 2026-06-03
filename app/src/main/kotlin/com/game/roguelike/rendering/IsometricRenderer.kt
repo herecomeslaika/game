@@ -184,6 +184,18 @@ class IsometricRenderer(val context: Context) {
         screenRenderer.renderMenu(canvas, w, h)
     }
 
+    fun renderMultiplayerLobby(canvas: Canvas, w: Int, h: Int) {
+        screenRenderer.renderMultiplayerLobby(canvas, w, h)
+    }
+
+    fun renderRoomList(canvas: Canvas, w: Int, h: Int, rooms: List<com.game.roguelike.network.RoomInfo>) {
+        screenRenderer.renderRoomList(canvas, w, h, rooms)
+    }
+
+    fun renderRoomWaiting(canvas: Canvas, w: Int, h: Int, roomManager: com.game.roguelike.network.RoomManager) {
+        screenRenderer.renderRoomWaiting(canvas, w, h, roomManager)
+    }
+
     fun renderGameOver(canvas: Canvas, w: Int, h: Int) {
         screenRenderer.renderGameOver(canvas, w, h)
     }
