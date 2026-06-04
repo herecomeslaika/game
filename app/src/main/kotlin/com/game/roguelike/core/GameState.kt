@@ -13,7 +13,9 @@ enum class GameState {
     VICTORY,
     MULTIPLAYER_LOBBY,
     ROOM_LIST,
-    ROOM_WAITING
+    ROOM_WAITING,
+    OPTIONS,
+    EXIT_CONFIRM
 }
 
 enum class LayerId {

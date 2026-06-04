@@ -1,4 +1,4 @@
-package com.game.roguelike.core
+﻿package com.game.roguelike.core
 
 import android.content.Context
 import android.os.Build
@@ -77,6 +77,7 @@ class Game(private val context: Context) {
     var eventResultTimer = 0f
     var roomTransitionCooldown = 0f
     var gameOverFadeAlpha = 0f
+    private var pendingReturnState: GameState = GameState.MENU
 
     // Boss entrance animation
     var bossEntranceTimer = 0f
@@ -188,6 +189,7 @@ class Game(private val context: Context) {
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
             GameState.EVENT -> updateEvent(dt)
+            GameState.OPTIONS, GameState.EXIT_CONFIRM -> {}
             GameState.LAYER_TRANSITION -> updateTransition(dt)
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             GameState.PLAYER_DEATH -> updatePlayerDeath(dt)
@@ -715,6 +717,18 @@ class Game(private val context: Context) {
                     renderPlaying(canvas)
                     renderEvent(canvas)
                 }
+                GameState.OPTIONS -> {
+                    renderMenu(canvas)
+                    screenRenderer.renderOptions(canvas, screenWidth, screenHeight)
+                }
+                GameState.EXIT_CONFIRM -> {
+                    if (pendingReturnState == GameState.PLAYING) {
+                        renderPlaying(canvas)
+                    } else {
+                        renderMenu(canvas)
+                    }
+                    screenRenderer.renderExitConfirm(canvas, screenWidth, screenHeight, pendingReturnState == GameState.PLAYING)
+                }
                 GameState.LAYER_TRANSITION -> {
                     renderPlaying(canvas)
                     renderer.drawFade(canvas, transitionAlpha)
@@ -923,79 +937,83 @@ class Game(private val context: Context) {
         }
     }
 
-    fun handleTouch(x: Float, y: Float) {
+        fun handleTouch(x: Float, y: Float) {
         when (gameState) {
             GameState.PLAYING -> {
-                // 检测右上角返回按钮点击
+                if (hud.handleBlessingPanelClick(x, y)) return
                 if (hud.handleBackButtonClick(x, y)) {
-                    // 弹出确认提示，暂时直接返回主菜单
-                    gameState = GameState.MENU
-                    inputManager?.reset()
+                    pendingReturnState = GameState.PLAYING
+                    gameState = GameState.EXIT_CONFIRM
                     return
                 }
             }
             GameState.MENU -> {
-                // 检查点击开始游戏按钮
-                if (screenRenderer.startBtnRect.contains(x, y)) {
-                    startNewRun()
+                when {
+                    screenRenderer.startBtnRect.contains(x, y) -> startNewRun()
+                    screenRenderer.multiplayerBtnRect.contains(x, y) -> gameState = GameState.MULTIPLAYER_LOBBY
+                    screenRenderer.optionsBtnRect.contains(x, y) -> {
+                        pendingReturnState = GameState.MENU
+                        gameState = GameState.OPTIONS
+                    }
+                    screenRenderer.exitBtnRect.contains(x, y) -> {
+                        pendingReturnState = GameState.MENU
+                        gameState = GameState.EXIT_CONFIRM
+                    }
                 }
-                // 检查点击联机模式按钮
-                else if (screenRenderer.multiplayerBtnRect.contains(x, y)) {
-                    gameState = GameState.MULTIPLAYER_LOBBY
+            }
+            GameState.OPTIONS -> {
+                if (screenRenderer.optionsBackBtnRect.contains(x, y)) {
+                    gameState = pendingReturnState
                 }
-                // 检查点击退出游戏按钮
-                else if (screenRenderer.exitBtnRect.contains(x, y)) {
-                    // 提示退出游戏，直接关闭Activity
-                val activity = context as android.app.Activity
-                activity.finishAndRemoveTask()
+            }
+            GameState.EXIT_CONFIRM -> {
+                when {
+                    screenRenderer.confirmCancelBtnRect.contains(x, y) -> gameState = pendingReturnState
+                    screenRenderer.confirmOkBtnRect.contains(x, y) -> {
+                        if (pendingReturnState == GameState.PLAYING) {
+                            gameState = GameState.MENU
+                            inputManager?.reset()
+                            hud.closeBlessingPanel()
+                        } else {
+                            val activity = context as android.app.Activity
+                            activity.finishAndRemoveTask()
+                        }
+                    }
                 }
             }
             GameState.MULTIPLAYER_LOBBY -> {
-                // 检查点击创建房间按钮
                 if (screenRenderer.createRoomBtnRect.contains(x, y)) {
-                    val code = roomManager.createRoom("房间")
-                    android.util.Log.d("Game", "创建房间，房间码：$code")
+                    roomManager.createRoom("房间")
                     gameState = GameState.ROOM_WAITING
-                }
-                // 检查点击加入房间按钮
-                else if (screenRenderer.joinRoomBtnRect.contains(x, y)) {
-                    android.util.Log.d("Game", "开始扫描房间")
+                } else if (screenRenderer.joinRoomBtnRect.contains(x, y)) {
                     roomManager.scanRooms()
                     gameState = GameState.ROOM_LIST
-                }
-                // 检查点击返回主菜单按钮
-                else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                } else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
                     gameState = GameState.MENU
                     inputManager?.reset()
                 }
             }
             GameState.ROOM_LIST -> {
-                // 检查点击房间列表中的房间
                 var clicked = false
                 roomManager.discoveredRooms.forEachIndexed { index, room ->
-                    if (index < screenRenderer.roomListRects.size && 
-                        screenRenderer.roomListRects[index].contains(x, y)) {
+                    if (index < screenRenderer.roomListRects.size && screenRenderer.roomListRects[index].contains(x, y)) {
                         roomManager.joinRoom(room)
                         gameState = GameState.ROOM_WAITING
                         clicked = true
                     }
                 }
-                // 检查点击返回按钮
                 if (!clicked && screenRenderer.backToMenuBtnRect.contains(x, y)) {
                     roomManager.stop()
                     gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
             GameState.ROOM_WAITING -> {
-                // 检查点击准备按钮（客户端）
                 if (!roomManager.isHost && screenRenderer.readyBtnRect.contains(x, y)) {
                     roomManager.setReady()
                 }
-                // 检查点击开始游戏按钮（房主）
                 if (roomManager.isHost && screenRenderer.startGameBtnRect.contains(x, y)) {
                     roomManager.startGame()
                 }
-                // 检查点击离开房间按钮
                 if (screenRenderer.leaveRoomBtnRect.contains(x, y)) {
                     roomManager.stop()
                     gameState = GameState.MULTIPLAYER_LOBBY
@@ -1040,7 +1058,6 @@ class Game(private val context: Context) {
             else -> {}
         }
     }
-
     private fun handleTouchEvent(x: Float, y: Float) {
         // If showing result, any tap dismisses
         if (eventResultText != null) {
@@ -1242,3 +1259,4 @@ class Game(private val context: Context) {
         }
     }
 }
+
