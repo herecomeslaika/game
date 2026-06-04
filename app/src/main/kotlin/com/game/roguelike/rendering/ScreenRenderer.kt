@@ -1,4 +1,4 @@
-package com.game.roguelike.rendering
+﻿package com.game.roguelike.rendering
 
 import android.content.Context
 import android.graphics.*
@@ -7,7 +7,6 @@ import com.game.roguelike.network.LobbyPlayer
 import com.game.roguelike.network.RoomInfo
 import com.game.roguelike.network.RoomManager
 import kotlin.math.sin
-import kotlin.math.cos
 import kotlin.math.min
 
 class ScreenRenderer(private val renderer: IsometricRenderer, private val context: Context) {
@@ -18,7 +17,11 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     // 菜单按钮点击区域
     val startBtnRect = RectF()
     val multiplayerBtnRect = RectF()
+    val optionsBtnRect = RectF()
     val exitBtnRect = RectF()
+    val confirmOkBtnRect = RectF()
+    val confirmCancelBtnRect = RectF()
+    val optionsBackBtnRect = RectF()
     
     // 联机大厅按钮区域
     val createRoomBtnRect = RectF()
@@ -39,80 +42,80 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     private var networkStatus = "已连接"  // 已连接、连接中、已断开
     private var lastPlayerCount = 0
 
-    fun renderMenu(canvas: Canvas, w: Int, h: Int) {
+        fun renderMenu(canvas: Canvas, w: Int, h: Int) {
         renderer.paint.color = Color.parseColor("#0A0F19")
         renderer.paint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
 
-        // 左侧狂野暗黑风格艺术字标题
-        renderer.titlePaint.textSize = 190f
+        val titleX = w * 0.08f
+        val titleY = h * 0.28f
+        val menuStartY = h * 0.46f
+        val titleFontSize = (h * 0.12f).coerceIn(96f, 160f)
+        val menuFontSize = (h * 0.058f).coerceIn(48f, 82f)
+        val btnSpacing = (h * 0.11f).coerceIn(78f, 135f)
+        val btnWidth = w * 0.28f
+        val btnTopPadding = menuFontSize * 0.72f
+        val btnBottomPadding = menuFontSize * 0.24f
+        val versionY = h * 0.955f
+
+        renderer.titlePaint.textSize = titleFontSize
         renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
         renderer.titlePaint.textAlign = Paint.Align.LEFT
-        // 暗黑风格：暗红色+粗黑描边+文字阴影
-        renderer.titlePaint.setShadowLayer(15f, 6f, 6f, Color.BLACK)
+        renderer.titlePaint.setShadowLayer(6f, 2f, 2f, Color.argb(160, 0, 0, 0))
         renderer.titlePaint.color = Color.parseColor("#990000")
-        renderer.titlePaint.style = Paint.Style.FILL_AND_STROKE
-        renderer.titlePaint.strokeWidth = 7f
-        canvas.drawText("冥途", w * 0.08f, h * 0.32f, renderer.titlePaint)
-        // 重置画笔样式避免影响其他绘制
+        renderer.titlePaint.style = Paint.Style.FILL
+        renderer.titlePaint.strokeWidth = 0f
+        canvas.drawText("冥途", titleX, titleY, renderer.titlePaint)
         renderer.titlePaint.clearShadowLayer()
         renderer.titlePaint.strokeWidth = 0f
         renderer.titlePaint.style = Paint.Style.FILL
 
-        // 菜单按钮列表
-        val btnX = w * 0.08f
-        var btnY = h * 0.5f
-        val btnSpacing = 170f
-        val btnWidth = 600f
-        val btnHeight = 80f
+        val btnX = titleX
+        var btnY = menuStartY
 
-        // 开始游戏按钮
         val alpha = ((sin(renderer.globalTime * 2f) + 1) * 127 + 128).toInt()
         renderer.subtitlePaint.color = Color.argb(alpha, 255, 215, 0)
         renderer.subtitlePaint.textAlign = Paint.Align.LEFT
-        renderer.subtitlePaint.textSize = 82f
+        renderer.subtitlePaint.textSize = menuFontSize
         renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
-        startBtnRect.set(btnX - 20f, btnY - 60f, btnX + btnWidth, btnY + 20f)
+        startBtnRect.set(btnX - 20f, btnY - btnTopPadding, btnX + btnWidth, btnY + btnBottomPadding)
         canvas.drawText("开始游戏", btnX, btnY, renderer.subtitlePaint)
         btnY += btnSpacing
 
-        // 联机模式按钮
         renderer.subtitlePaint.color = Color.parseColor("#88FF88")
-        multiplayerBtnRect.set(btnX - 20f, btnY - 60f, btnX + btnWidth, btnY + 20f)
+        multiplayerBtnRect.set(btnX - 20f, btnY - btnTopPadding, btnX + btnWidth, btnY + btnBottomPadding)
         canvas.drawText("联机模式", btnX, btnY, renderer.subtitlePaint)
         btnY += btnSpacing
 
-        // 选项按钮（暂不实现）
         renderer.subtitlePaint.color = Color.parseColor("#AAAAAA")
+        optionsBtnRect.set(btnX - 20f, btnY - btnTopPadding, btnX + btnWidth, btnY + btnBottomPadding)
         canvas.drawText("选项", btnX, btnY, renderer.subtitlePaint)
         btnY += btnSpacing
 
-        // 退出游戏按钮
-        exitBtnRect.set(btnX - 20f, btnY - 60f, btnX + btnWidth, btnY + 20f)
+        exitBtnRect.set(btnX - 20f, btnY - btnTopPadding, btnX + btnWidth, btnY + btnBottomPadding)
         canvas.drawText("退出游戏", btnX, btnY, renderer.subtitlePaint)
 
-        // ========== 右侧人物图片 ==========
-        val cx = w * 0.78f
-        val cy = h * 0.52f
-        val bitmapWidth = 1480f
-        val bitmapHeight = 2060f
-        val left = cx - bitmapWidth / 2
-        val top = cy - bitmapHeight / 2
+        val bitmapAspect = menuPlayerBitmap.width.toFloat() / menuPlayerBitmap.height.toFloat()
+        val maxBitmapHeight = h * 0.92f
+        val maxBitmapWidth = w * 0.42f
+        val bitmapHeight = min(maxBitmapHeight, maxBitmapWidth / bitmapAspect)
+        val bitmapWidth = bitmapHeight * bitmapAspect
+        val cx = w * 0.80f
+        val cy = h * 0.55f
+        val left = cx - bitmapWidth / 2f
+        val top = cy - bitmapHeight / 2f
         val dstRect = RectF(left, top, left + bitmapWidth, top + bitmapHeight)
         canvas.drawBitmap(menuPlayerBitmap, null, dstRect, renderer.paint)
 
-        // 底部版本信息
-        renderer.subtitlePaint.textSize = 30f
+        renderer.subtitlePaint.textSize = (h * 0.022f).coerceIn(22f, 30f)
         renderer.subtitlePaint.color = Color.parseColor("#666666")
-        canvas.drawText("冥途 v1.0", w * 0.08f, h * 0.92f, renderer.subtitlePaint)
+        canvas.drawText("冥途 v1.0", titleX, versionY, renderer.subtitlePaint)
 
-        // 恢复画笔默认设置
         renderer.titlePaint.textAlign = Paint.Align.CENTER
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
         renderer.subtitlePaint.typeface = Typeface.DEFAULT
         renderer.subtitlePaint.textSize = 54f
     }
-
     fun renderMultiplayerLobby(canvas: Canvas, w: Int, h: Int) {
         // 背景渐变效果
         renderer.paint.color = Color.parseColor("#0A0F19")
@@ -682,7 +685,66 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         drawButtonWithGlow(canvas, w / 2f, leaveBtnY, 380f, 75f,
             "← 离开房间", Color.parseColor("#FF5252"), leaveRoomBtnRect)
     }
+    fun renderOptions(canvas: Canvas, w: Int, h: Int) {
+        val panel = RectF(w * 0.18f, h * 0.18f, w * 0.82f, h * 0.82f)
+        renderer.paint.color = Color.argb(210, 10, 16, 28)
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(panel, 22f, 22f, renderer.paint)
 
+        renderer.paint.color = Color.argb(180, 255, 255, 255)
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2f
+        canvas.drawRoundRect(panel, 22f, 22f, renderer.paint)
+
+        renderer.titlePaint.textAlign = Paint.Align.CENTER
+        renderer.titlePaint.color = Color.parseColor("#E5E7EB")
+        renderer.titlePaint.textSize = 72f
+        canvas.drawText("选项", panel.centerX(), panel.top + 80f, renderer.titlePaint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.LEFT
+        renderer.subtitlePaint.color = Color.parseColor("#D1D5DB")
+        renderer.subtitlePaint.textSize = 36f
+        val left = panel.left + 60f
+        canvas.drawText("音量：100%", left, panel.top + 170f, renderer.subtitlePaint)
+        canvas.drawText("震动：开启", left, panel.top + 240f, renderer.subtitlePaint)
+        canvas.drawText("画质：标准", left, panel.top + 310f, renderer.subtitlePaint)
+        canvas.drawText("联机：局域网", left, panel.top + 380f, renderer.subtitlePaint)
+        canvas.drawText("提示：后续可以继续扩展这里", left, panel.top + 470f, renderer.subtitlePaint)
+
+        val backCx = panel.centerX()
+        val backCy = panel.bottom - 70f
+        val backWidth = 240f
+        val backHeight = 72f
+        optionsBackBtnRect.set(backCx - backWidth / 2, backCy - backHeight / 2, backCx + backWidth / 2, backCy + backHeight / 2)
+        drawButtonWithGlow(canvas, backCx, backCy, backWidth, backHeight, "返回", Color.parseColor("#6B7280"), optionsBackBtnRect)
+    }
+
+    fun renderExitConfirm(canvas: Canvas, w: Int, h: Int, fromPlaying: Boolean) {
+        val panel = RectF(w * 0.28f, h * 0.30f, w * 0.72f, h * 0.68f)
+        renderer.paint.color = Color.argb(225, 12, 18, 30)
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(panel, 20f, 20f, renderer.paint)
+
+        renderer.paint.color = Color.argb(170, 255, 255, 255)
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2f
+        canvas.drawRoundRect(panel, 20f, 20f, renderer.paint)
+
+        renderer.titlePaint.textAlign = Paint.Align.CENTER
+        renderer.titlePaint.color = Color.parseColor("#F3F4F6")
+        renderer.titlePaint.textSize = 58f
+        canvas.drawText("确认退出？", panel.centerX(), panel.top + 80f, renderer.titlePaint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.color = Color.parseColor("#D1D5DB")
+        renderer.subtitlePaint.textSize = 30f
+        val message = if (fromPlaying) "返回主菜单会结束当前战斗" else "确定要关闭游戏吗"
+        canvas.drawText(message, panel.centerX(), panel.top + 150f, renderer.subtitlePaint)
+
+        val btnCy = panel.bottom - 70f
+        drawButtonWithGlow(canvas, panel.centerX() - 130f, btnCy, 180f, 68f, "取消", Color.parseColor("#6B7280"), confirmCancelBtnRect)
+        drawButtonWithGlow(canvas, panel.centerX() + 130f, btnCy, 180f, 68f, "确认", Color.parseColor("#EF4444"), confirmOkBtnRect)
+    }
     fun renderGameOver(canvas: Canvas, w: Int, h: Int) {
         // 背景渐变 - 暗红色
         renderer.paint.color = Color.argb(220, 40, 10, 10)
@@ -789,8 +851,8 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
 
                 // Gold outline
                 renderer.titlePaint.color = Color.argb(nameAlpha, 255, 215, 0)
-                renderer.titlePaint.style = Paint.Style.FILL_AND_STROKE
-                renderer.titlePaint.strokeWidth = 4f
+                renderer.titlePaint.style = Paint.Style.FILL
+                renderer.titlePaint.strokeWidth = 0f
                 canvas.drawText(bossName, w / 2f, h * 0.42f, renderer.titlePaint)
                 renderer.titlePaint.style = Paint.Style.FILL
                 renderer.titlePaint.strokeWidth = 0f
@@ -836,3 +898,5 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         }
     }
 }
+
+
