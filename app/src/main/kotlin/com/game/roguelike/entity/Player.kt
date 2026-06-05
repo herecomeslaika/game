@@ -464,6 +464,7 @@ class Player : Entity() {
 
         specialCooldownTimer = specialCooldown
         stateMachine.transitionTo(PlayerState.SPECIAL)
+        game.audioManager.play("special")
 
         val nearest = findNearestEnemy(game)
         val baseDirection = if (nearest != null) {

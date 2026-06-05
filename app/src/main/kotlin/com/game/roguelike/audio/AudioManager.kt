@@ -32,7 +32,8 @@ class AudioManager(context: Context) {
             "dash" to R.raw.sfx_dash,
             "enemy_death" to R.raw.sfx_enemy_death,
             "boss_phase" to R.raw.sfx_boss_phase,
-            "pickup" to R.raw.sfx_pickup
+            "pickup" to R.raw.sfx_pickup,
+            "special" to R.raw.sfx_special
         )
         for ((name, resId) in sounds) {
             try {
