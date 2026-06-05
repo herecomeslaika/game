@@ -408,7 +408,3 @@ if (shouldPulse) { ... }
 
 ---
 
-## 相关文件
-- `UI_OPTIMIZATION_SUMMARY.md` - 优化概览
-- `TESTING_GUIDE.md` - 测试指南
-- `ScreenRenderer.kt` - 实现源文件
