@@ -183,9 +183,12 @@ class Player : Entity() {
 
     override fun update(dt: Float, game: Game) {
         stateMachine.update(dt)
-        updateCooldowns(dt)
+        updateCooldowns(dt, game)
         updateWarCry(dt)
         updateDashSpeedBoost(dt)
+
+        val isRunning = stateMachine.currentState == PlayerState.RUN
+        game.audioManager.tryFootstep(dt, isRunning)
 
         when (stateMachine.currentState) {
             PlayerState.IDLE -> updateIdle(dt, game)
@@ -216,10 +219,19 @@ class Player : Entity() {
         clampToRoom(game.currentRoom)
     }
 
-    private fun updateCooldowns(dt: Float) {
-        if (specialCooldownTimer > 0) specialCooldownTimer -= dt
-        if (dashCooldownTimer > 0) dashCooldownTimer -= dt
-        if (supportCooldownTimer > 0) supportCooldownTimer -= dt
+    private fun updateCooldowns(dt: Float, game: Game) {
+        if (specialCooldownTimer > 0) {
+            specialCooldownTimer -= dt
+            if (specialCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
+        }
+        if (dashCooldownTimer > 0) {
+            dashCooldownTimer -= dt
+            if (dashCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
+        }
+        if (supportCooldownTimer > 0) {
+            supportCooldownTimer -= dt
+            if (supportCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
+        }
         if (invincibleTimer > 0) invincibleTimer -= dt
         if (athenaShieldTimer > 0) {
             athenaShieldTimer -= dt
@@ -828,7 +840,11 @@ class Player : Entity() {
 
         // Hitstop + enhanced shake on successful hit
         if (hitAny) {
-            game.audioManager.play("hit")
+            if (isCrit) {
+                game.audioManager.playCrit()
+            } else {
+                game.audioManager.play("hit")
+            }
             val hitstopFrames = when (comboStep) {
                 1 -> 1
                 2 -> 2

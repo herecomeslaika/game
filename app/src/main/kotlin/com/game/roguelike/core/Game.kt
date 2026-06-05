@@ -653,6 +653,7 @@ class Game(private val context: Context) {
                 gameState = GameState.LAYER_TRANSITION
                 transitionAlpha = 0f
                 transitionTarget = null
+                audioManager.play("level_up")
             }
             return
         }
@@ -698,7 +699,7 @@ class Game(private val context: Context) {
         player.ownedGods.add(blessing.god)
         applyBlessingEffect(blessing, player)
         gameState = GameState.PLAYING
-        audioManager.play("pickup")
+        audioManager.play("blessing")
     }
 
     private fun applyBlessingEffect(blessing: Blessing, player: Player) {
@@ -983,6 +984,7 @@ class Game(private val context: Context) {
     }
 
         fun handleTouch(x: Float, y: Float) {
+        audioManager.play("ui_click")
         when (gameState) {
             GameState.PLAYING -> {
                 if (hud.handleBlessingPanelClick(x, y)) return
