@@ -1,10 +1,12 @@
 package com.game.roguelike.util
 
+import kotlinx.serialization.Serializable
 import kotlin.math.sqrt
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+@Serializable
 data class Vector2(var x: Float = 0f, var y: Float = 0f) {
 
     val magnitude: Float get() = sqrt(x * x + y * y)

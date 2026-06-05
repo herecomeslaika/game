@@ -1,4 +1,4 @@
-package com.game.roguelike.core
+﻿package com.game.roguelike.core
 
 import android.content.Context
 import android.os.Build
@@ -24,6 +24,7 @@ import com.game.roguelike.shop.Shop
 import com.game.roguelike.ui.ShopTouchResult
 import com.game.roguelike.ui.*
 import com.game.roguelike.util.Vector2
+import com.game.roguelike.network.RoomManager
 import kotlin.math.min
 
 class Game(private val context: Context) {
@@ -62,6 +63,7 @@ class Game(private val context: Context) {
     val shopUI = ShopUI()
 
     val audioManager = AudioManager(context)
+    val roomManager = RoomManager(context)
 
     var shakeAmount = 0f
     var shakeDuration = 0f
@@ -75,6 +77,7 @@ class Game(private val context: Context) {
     var eventResultTimer = 0f
     var roomTransitionCooldown = 0f
     var gameOverFadeAlpha = 0f
+    private var pendingReturnState: GameState = GameState.MENU
 
     // Boss entrance animation
     var bossEntranceTimer = 0f
@@ -119,6 +122,12 @@ class Game(private val context: Context) {
             audioManager.loadSounds(context)
             soundsLoaded = true
         }
+        
+        // 设置 RoomManager 回调
+        roomManager.onGameStart = {
+            gameState = GameState.PLAYING
+        }
+        
         gameThread = Thread { gameLoop() }
         gameThread?.start()
     }
@@ -172,11 +181,15 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
+            GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
+            GameState.ROOM_LIST -> updateRoomList(dt)
+            GameState.ROOM_WAITING -> updateRoomWaiting(dt)
             GameState.PLAYING -> updatePlaying(scaledDt)
             GameState.BOSS_ENTRANCE -> updateBossEntrance(dt)
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
             GameState.EVENT -> updateEvent(dt)
+            GameState.OPTIONS, GameState.EXIT_CONFIRM -> {}
             GameState.LAYER_TRANSITION -> updateTransition(dt)
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             GameState.PLAYER_DEATH -> updatePlayerDeath(dt)
@@ -190,6 +203,18 @@ class Game(private val context: Context) {
 
     private fun updateMenu(dt: Float) {
         // Waiting for tap input via handleTouch
+    }
+
+    private fun updateMultiplayerLobby(dt: Float) {
+        // Waiting for tap input via handleTouch in multiplayer lobby
+    }
+
+    private fun updateRoomList(dt: Float) {
+        // Waiting for tap input via handleTouch to join a room
+    }
+
+    private fun updateRoomWaiting(dt: Float) {
+        // Waiting for game start or players to join
     }
 
     private fun updatePlaying(dt: Float) {
@@ -672,6 +697,9 @@ class Game(private val context: Context) {
 
             when (gameState) {
                 GameState.MENU -> renderMenu(canvas)
+                GameState.MULTIPLAYER_LOBBY -> renderMultiplayerLobby(canvas)
+                GameState.ROOM_LIST -> renderRoomList(canvas)
+                GameState.ROOM_WAITING -> renderRoomWaiting(canvas)
                 GameState.PLAYING -> renderPlaying(canvas)
                 GameState.BOSS_ENTRANCE -> {
                     renderPlaying(canvas)
@@ -688,6 +716,18 @@ class Game(private val context: Context) {
                 GameState.EVENT -> {
                     renderPlaying(canvas)
                     renderEvent(canvas)
+                }
+                GameState.OPTIONS -> {
+                    renderMenu(canvas)
+                    screenRenderer.renderOptions(canvas, screenWidth, screenHeight)
+                }
+                GameState.EXIT_CONFIRM -> {
+                    if (pendingReturnState == GameState.PLAYING) {
+                        renderPlaying(canvas)
+                    } else {
+                        renderMenu(canvas)
+                    }
+                    screenRenderer.renderExitConfirm(canvas, screenWidth, screenHeight, pendingReturnState == GameState.PLAYING)
                 }
                 GameState.LAYER_TRANSITION -> {
                     renderPlaying(canvas)
@@ -708,6 +748,18 @@ class Game(private val context: Context) {
 
     private fun renderMenu(canvas: android.graphics.Canvas) {
         renderer.renderMenu(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderMultiplayerLobby(canvas: android.graphics.Canvas) {
+        renderer.renderMultiplayerLobby(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderRoomList(canvas: android.graphics.Canvas) {
+        renderer.renderRoomList(canvas, screenWidth, screenHeight, roomManager.discoveredRooms)
+    }
+
+    private fun renderRoomWaiting(canvas: android.graphics.Canvas) {
+        renderer.renderRoomWaiting(canvas, screenWidth, screenHeight, roomManager)
     }
 
     private fun renderPlaying(canvas: android.graphics.Canvas) {
@@ -885,27 +937,86 @@ class Game(private val context: Context) {
         }
     }
 
-    fun handleTouch(x: Float, y: Float) {
+        fun handleTouch(x: Float, y: Float) {
         when (gameState) {
             GameState.PLAYING -> {
-                // 检测右上角返回按钮点击
+                if (hud.handleBlessingPanelClick(x, y)) return
                 if (hud.handleBackButtonClick(x, y)) {
-                    // 弹出确认提示，暂时直接返回主菜单
-                    gameState = GameState.MENU
-                    inputManager?.reset()
+                    pendingReturnState = GameState.PLAYING
+                    gameState = GameState.EXIT_CONFIRM
                     return
                 }
             }
             GameState.MENU -> {
-                // 检查点击开始游戏按钮
-                if (screenRenderer.startBtnRect.contains(x, y)) {
-                    startNewRun()
+                when {
+                    screenRenderer.startBtnRect.contains(x, y) -> startNewRun()
+                    screenRenderer.multiplayerBtnRect.contains(x, y) -> gameState = GameState.MULTIPLAYER_LOBBY
+                    screenRenderer.optionsBtnRect.contains(x, y) -> {
+                        pendingReturnState = GameState.MENU
+                        gameState = GameState.OPTIONS
+                    }
+                    screenRenderer.exitBtnRect.contains(x, y) -> {
+                        pendingReturnState = GameState.MENU
+                        gameState = GameState.EXIT_CONFIRM
+                    }
                 }
-                // 检查点击退出游戏按钮
-                else if (screenRenderer.exitBtnRect.contains(x, y)) {
-                    // 提示退出游戏，直接关闭Activity
-                val activity = context as android.app.Activity
-                activity.finishAndRemoveTask()
+            }
+            GameState.OPTIONS -> {
+                if (screenRenderer.optionsBackBtnRect.contains(x, y)) {
+                    gameState = pendingReturnState
+                }
+            }
+            GameState.EXIT_CONFIRM -> {
+                when {
+                    screenRenderer.confirmCancelBtnRect.contains(x, y) -> gameState = pendingReturnState
+                    screenRenderer.confirmOkBtnRect.contains(x, y) -> {
+                        if (pendingReturnState == GameState.PLAYING) {
+                            gameState = GameState.MENU
+                            inputManager?.reset()
+                            hud.closeBlessingPanel()
+                        } else {
+                            val activity = context as android.app.Activity
+                            activity.finishAndRemoveTask()
+                        }
+                    }
+                }
+            }
+            GameState.MULTIPLAYER_LOBBY -> {
+                if (screenRenderer.createRoomBtnRect.contains(x, y)) {
+                    roomManager.createRoom("房间")
+                    gameState = GameState.ROOM_WAITING
+                } else if (screenRenderer.joinRoomBtnRect.contains(x, y)) {
+                    roomManager.scanRooms()
+                    gameState = GameState.ROOM_LIST
+                } else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    gameState = GameState.MENU
+                    inputManager?.reset()
+                }
+            }
+            GameState.ROOM_LIST -> {
+                var clicked = false
+                roomManager.discoveredRooms.forEachIndexed { index, room ->
+                    if (index < screenRenderer.roomListRects.size && screenRenderer.roomListRects[index].contains(x, y)) {
+                        roomManager.joinRoom(room)
+                        gameState = GameState.ROOM_WAITING
+                        clicked = true
+                    }
+                }
+                if (!clicked && screenRenderer.backToMenuBtnRect.contains(x, y)) {
+                    roomManager.stop()
+                    gameState = GameState.MULTIPLAYER_LOBBY
+                }
+            }
+            GameState.ROOM_WAITING -> {
+                if (!roomManager.isHost && screenRenderer.readyBtnRect.contains(x, y)) {
+                    roomManager.setReady()
+                }
+                if (roomManager.isHost && screenRenderer.startGameBtnRect.contains(x, y)) {
+                    roomManager.startGame()
+                }
+                if (screenRenderer.leaveRoomBtnRect.contains(x, y)) {
+                    roomManager.stop()
+                    gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
             GameState.BLESSING_SELECT -> {
@@ -947,7 +1058,6 @@ class Game(private val context: Context) {
             else -> {}
         }
     }
-
     private fun handleTouchEvent(x: Float, y: Float) {
         // If showing result, any tap dismisses
         if (eventResultText != null) {
@@ -1149,3 +1259,4 @@ class Game(private val context: Context) {
         }
     }
 }
+

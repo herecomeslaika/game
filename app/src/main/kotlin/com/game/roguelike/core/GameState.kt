@@ -10,74 +10,18 @@ enum class GameState {
     BOSS_ENTRANCE,
     PLAYER_DEATH,
     GAME_OVER,
-    VICTORY
-}
-
-enum class PlayerState {
-    IDLE,
-    RUN,
-    ATTACK1,
-    ATTACK2,
-    ATTACK3,
-    SPECIAL,
-    DASH,
-    HURT,
-    DEAD,
-    CHARGING,
-    WHIRLWIND
-}
-
-enum class EnemyState {
-    IDLE,
-    PATROL,
-    CHASE,
-    PREPARE_ATTACK,
-    ATTACK,
-    HURT,
-    DEAD
-}
-
-enum class RoomType {
-    ENTRY,
-    COMBAT,
-    REWARD,
-    SHOP,
-    BOSS,
-    ELITE,
-    TREASURE,
-    EVENT,
-    REST,
-    HIDDEN
+    VICTORY,
+    MULTIPLAYER_LOBBY,
+    ROOM_LIST,
+    ROOM_WAITING,
+    OPTIONS,
+    EXIT_CONFIRM
 }
 
 enum class LayerId {
     TARTARUS,
     ASPHODEL,
     ELYSIUM
-}
-
-enum class BlessingType {
-    ATTACK,
-    SPECIAL,
-    DASH,
-    SUPPORT
-}
-
-enum class BlessingRarity {
-    COMMON,
-    RARE,
-    EPIC,
-    DUO
-}
-
-enum class GodType {
-    ZEUS,
-    APHRODITE,
-    ARES,
-    ATHENA,
-    HERMES,
-    DEMETER,
-    HADES
 }
 
 enum class Direction {
