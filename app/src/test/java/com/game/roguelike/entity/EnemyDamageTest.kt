@@ -89,6 +89,19 @@ class EnemyDamageTest {
     }
 
     @Test
+    fun `boss configs scale up by layer with final boss clearly strongest`() {
+        val bone = EnemyConfig.forType(EnemyType.MEGA_SKELETON)
+        val titan = EnemyConfig.forType(EnemyType.INFERNO_TITAN)
+        val champion = EnemyConfig.forType(EnemyType.CHAMPION)
+
+        assertTrue(titan.maxHealth > bone.maxHealth)
+        assertTrue(champion.maxHealth > titan.maxHealth)
+        assertTrue(champion.maxHealth >= bone.maxHealth * 3)
+        assertTrue(champion.attackDamage > titan.attackDamage)
+        assertTrue(champion.attackCooldown < titan.attackCooldown)
+    }
+
+    @Test
     fun `non-boss enemy types have empty boss name and title`() {
         assertEquals("", EnemyType.SKELETON.bossName)
         assertEquals("", EnemyType.WRAITH.bossTitle)

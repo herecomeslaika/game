@@ -262,12 +262,12 @@ object MegaSkeletonBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canGroundSlam = true; enemy.summonCount = 3; enemy.summonCooldown = 4f; enemy.speed *= 1.3f
-                enemy.attackCooldown *= 0.8f
+                enemy.canGroundSlam = true; enemy.summonCount = 3; enemy.summonCooldown = 3.6f; enemy.speed *= 1.25f
+                enemy.attackCooldown *= 0.78f
             }
             2 -> {
-                enemy.attackDamage = (enemy.attackDamage * 1.3f).toInt(); enemy.summonCount = 4; enemy.summonCooldown = 3f
-                enemy.bossEnrageCooldown = 4f
+                enemy.attackDamage = (enemy.attackDamage * 1.35f).toInt(); enemy.summonCount = 5; enemy.summonCooldown = 2.6f
+                enemy.bossEnrageCooldown = 3.1f
             }
         }
     }
@@ -328,9 +328,9 @@ object InfernoTitanBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canMeteor = true; enemy.speed *= 1.3f; enemy.chargeComboMax = 2; enemy.meteorCooldown = 5f
-                enemy.attackCooldown *= 0.75f
-                enemy.bossEnrageCooldown = 5f
+                enemy.canMeteor = true; enemy.speed *= 1.35f; enemy.chargeComboMax = 3; enemy.meteorCooldown = 3.8f
+                enemy.attackCooldown *= 0.68f
+                enemy.bossEnrageCooldown = 3.5f
             }
         }
     }
@@ -363,7 +363,8 @@ object ChampionBehavior : EnemyBehavior {
     }
 
     override fun updateChase(enemy: Enemy, dt: Float, game: Game, toPlayer: Vector2, distToPlayer: Float): Boolean {
-        if (enemy.isBoss && enemy.phase >= 1 && distToPlayer < 150f && enemy.dodgeRollTimer <= 0f) {
+        val thrustTriggerRange = if (enemy.phase >= 2) 230f else 150f
+        if (enemy.isBoss && enemy.phase >= 1 && distToPlayer < thrustTriggerRange && enemy.dodgeRollTimer <= 0f) {
             enemy.startHeroicThrust(game)
             enemy.dodgeRollTimer = enemy.dodgeRollCooldown
             return true
@@ -378,19 +379,32 @@ object ChampionBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canDodgeRoll = true; enemy.speed *= 1.4f; enemy.shieldThrown = false
-                enemy.attackDamage = (enemy.attackDamage * 1.2f).toInt()
-                enemy.dodgeRollCooldown = 4f
-                enemy.bossEnrageCooldown = 3f
+                enemy.canDodgeRoll = true; enemy.speed *= 1.22f; enemy.shieldThrown = false
+                enemy.attackDamage = (enemy.attackDamage * 1.15f).toInt()
+                enemy.attackCooldown *= 0.8f
+                enemy.dodgeRollCooldown = 3.2f
+                enemy.bossEnrageCooldown = 2.4f
+            }
+            2 -> {
+                enemy.speed *= 1.28f
+                enemy.attackDamage = (enemy.attackDamage * 1.3f).toInt()
+                enemy.attackCooldown *= 0.62f
+                enemy.projectileSpeed *= 1.22f
+                enemy.dodgeRollCooldown = 1.9f
+                enemy.bossEnrageCooldown = 1.55f
             }
         }
     }
 
     override fun executeBossEnrage(enemy: Enemy, game: Game) {
-        when (enemy.bossSkillIndex++ % if (enemy.phase >= 1) 3 else 2) {
+        when (enemy.bossSkillIndex++ % if (enemy.phase >= 2) 4 else if (enemy.phase >= 1) 3 else 2) {
             0 -> enemy.startShieldCounter(game)
             1 -> enemy.startSpearFan(game)
-            else -> enemy.startHeroicThrust(game)
+            2 -> enemy.startHeroicThrust(game)
+            else -> {
+                enemy.startSpearFan(game)
+                enemy.startHeroicThrust(game)
+            }
         }
     }
 }

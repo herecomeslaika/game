@@ -602,30 +602,39 @@ class Enemy(
         val wallColor = android.graphics.Color.parseColor("#CDEECC")
         game.showBossMessage("骨墙封锁", 1.2f)
         game.bossWarnings.add(BossWarning.wall(
-            start = Vector2(c.x - 95f, c.y - 72f),
-            end = Vector2(c.x - 95f, c.y + 72f),
-            width = 22f,
-            warnDuration = 0.7f,
+            start = Vector2(c.x - 110f, c.y - 82f),
+            end = Vector2(c.x - 110f, c.y + 82f),
+            width = 26f,
+            warnDuration = 0.62f,
             color = wallColor
         ))
         game.bossWarnings.add(BossWarning.wall(
-            start = Vector2(c.x + 95f, c.y - 72f),
-            end = Vector2(c.x + 95f, c.y + 72f),
-            width = 22f,
-            warnDuration = 0.7f,
+            start = Vector2(c.x + 110f, c.y - 82f),
+            end = Vector2(c.x + 110f, c.y + 82f),
+            width = 26f,
+            warnDuration = 0.62f,
             color = wallColor
         ))
         game.bossWarnings.add(BossWarning.wall(
-            start = Vector2(c.x - 95f, c.y - 72f),
-            end = Vector2(c.x + 95f, c.y - 72f),
-            width = 22f,
-            warnDuration = 0.7f,
+            start = Vector2(c.x - 110f, c.y - 82f),
+            end = Vector2(c.x + 110f, c.y - 82f),
+            width = 26f,
+            warnDuration = 0.62f,
             color = wallColor
         ))
+        if (phase >= 1) {
+            game.bossWarnings.add(BossWarning.wall(
+                start = Vector2(c.x - 110f, c.y + 82f),
+                end = Vector2(c.x + 110f, c.y + 82f),
+                width = 26f,
+                warnDuration = 0.62f,
+                color = wallColor
+            ))
+        }
     }
 
     fun triggerCorpseBursts(game: Game) {
-        val minions = game.enemies.filter { !it.isBoss && !it.isDead && it.type == EnemyType.SKELETON }.take(4)
+        val minions = game.enemies.filter { !it.isBoss && !it.isDead && it.type == EnemyType.SKELETON }.take(if (phase >= 2) 6 else 4)
         game.showBossMessage("亡骸爆裂", 1.2f)
         if (minions.isEmpty()) {
             summonMinions(game)
@@ -645,9 +654,9 @@ class Enemy(
             val offset = i - 1
             game.bossWarnings.add(BossWarning.circle(
                 position = Vector2(base.x + offset * 46f, base.y + i * 18f),
-                radius = 78f + i * 16f,
-                warnDuration = 0.45f + i * 0.35f,
-                damage = 18 + i * 4,
+                radius = 86f + i * 20f,
+                warnDuration = 0.38f + i * 0.3f,
+                damage = 20 + i * 5,
                 color = slamColor,
                 effect = BossWarningEffect.SLAM
             ))
@@ -657,14 +666,15 @@ class Enemy(
     fun startMeteorRain(game: Game) {
         val target = game.player.position
         game.showBossMessage("陨星标记雨", 1.3f)
-        for (i in 0..5) {
+        val meteorCount = if (phase >= 1) 9 else 6
+        for (i in 0 until meteorCount) {
             val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
-            val dist = if (i == 0) 0f else 35f + Random.nextFloat() * 120f
+            val dist = if (i == 0) 0f else 35f + Random.nextFloat() * (if (phase >= 1) 165f else 120f)
             game.bossWarnings.add(BossWarning.circle(
                 position = Vector2(target.x + cos(angle) * dist, target.y + sin(angle) * dist),
-                radius = 50f,
-                warnDuration = 0.55f + i * 0.12f,
-                damage = 22,
+                radius = if (phase >= 1) 58f else 50f,
+                warnDuration = 0.5f + i * 0.09f,
+                damage = if (phase >= 1) 28 else 22,
                 color = android.graphics.Color.parseColor("#FF7733"),
                 effect = BossWarningEffect.METEOR
             ))
@@ -676,56 +686,90 @@ class Enemy(
         game.showBossMessage("熔岩十字喷发", 1.3f)
         game.bossWarnings.add(BossWarning.cross(
             position = game.player.position,
-            radius = 190f,
-            width = 36f,
-            warnDuration = 0.75f,
-            damage = 24,
+            radius = if (phase >= 1) 240f else 190f,
+            width = if (phase >= 1) 44f else 36f,
+            warnDuration = 0.62f,
+            damage = if (phase >= 1) 30 else 24,
             color = android.graphics.Color.parseColor("#FF5522")
         ))
+        if (phase >= 1) {
+            val p = game.player.position
+            val color = android.graphics.Color.parseColor("#FF5522")
+            game.bossWarnings.add(BossWarning.line(
+                start = Vector2(p.x - 170f, p.y - 170f),
+                end = Vector2(p.x + 170f, p.y + 170f),
+                width = 36f,
+                warnDuration = 0.72f,
+                damage = 26,
+                color = color,
+                effect = BossWarningEffect.FIRE
+            ))
+            game.bossWarnings.add(BossWarning.line(
+                start = Vector2(p.x - 170f, p.y + 170f),
+                end = Vector2(p.x + 170f, p.y - 170f),
+                width = 36f,
+                warnDuration = 0.82f,
+                damage = 26,
+                color = color,
+                effect = BossWarningEffect.FIRE
+            ))
+        }
     }
 
     fun startBlazingCharge(game: Game) {
         val dir = game.player.position - position
         game.showBossMessage("烈焰冲锋残迹", 1.1f)
-        startFlameDash(dir, duration = if (phase >= 1) 0.62f else 0.48f, dashSpeed = 760f, trailSize = if (phase >= 1) 16f else 12f)
+        startFlameDash(dir, duration = if (phase >= 1) 0.82f else 0.55f, dashSpeed = if (phase >= 1) 980f else 850f, trailSize = if (phase >= 1) 22f else 16f)
     }
 
     fun startShieldCounter(game: Game) {
-        shieldCounterTimer = 1.1f
+        shieldCounterTimer = if (phase >= 2) 1.45f else 1.1f
         game.showBossMessage("盾反窗口", 1.1f)
-        spawnThemeParticles(game, android.graphics.Color.parseColor("#88AAFF"), 10, 80f, 0.5f, 4f)
+        spawnThemeParticles(game, android.graphics.Color.parseColor("#88AAFF"), if (phase >= 2) 18 else 10, 95f, 0.5f, 4f)
     }
 
     fun startSpearFan(game: Game) {
         val dir = (game.player.position - position).normalized
         game.showBossMessage("三连投矛扇形", 1.2f)
-        game.bossWarnings.add(BossWarning.fan(
-            position = Vector2(position.x, position.y),
-            angle = dir.angle,
-            arc = 0.9f,
-            radius = 270f,
-            warnDuration = 0.55f,
-            damage = 16,
-            color = android.graphics.Color.parseColor("#88AAFF"),
-            effect = BossWarningEffect.SPEAR
-        ))
+        val fanCount = if (type == EnemyType.CHAMPION && phase >= 2) 3 else 1
+        for (i in 0 until fanCount) {
+            val offset = (i - (fanCount - 1) / 2f) * 0.55f
+            game.bossWarnings.add(BossWarning.fan(
+                position = Vector2(position.x, position.y),
+                angle = dir.angle + offset,
+                arc = if (phase >= 2) 1.0f else 0.9f,
+                radius = if (phase >= 2) 360f else 285f,
+                warnDuration = if (phase >= 2) 0.38f else 0.55f,
+                damage = if (phase >= 2) 24 else 17,
+                color = android.graphics.Color.parseColor("#88AAFF"),
+                effect = BossWarningEffect.SPEAR
+            ))
+        }
     }
 
     fun startHeroicThrust(game: Game) {
         val dir = (game.player.position - position).normalized
-        val end = Vector2(position.x + dir.x * 310f, position.y + dir.y * 310f)
+        val perpendicular = Vector2(-dir.y, dir.x)
         game.showBossMessage("英灵突刺", 1.1f)
-        game.bossWarnings.add(BossWarning.line(
-            start = Vector2(position.x, position.y),
-            end = end,
-            width = 34f,
-            warnDuration = if (phase >= 1) 0.32f else 0.48f,
-            damage = 22,
-            color = android.graphics.Color.parseColor("#AACCFF"),
-            effect = BossWarningEffect.THRUST
-        ))
-        position.x += dir.x * 28f
-        position.y += dir.y * 28f
+        val thrustCount = if (phase >= 2) 3 else 1
+        for (i in 0 until thrustCount) {
+            val offset = (i - (thrustCount - 1) / 2f) * 44f
+            val start = Vector2(position.x + perpendicular.x * offset, position.y + perpendicular.y * offset)
+            val thrustLength = if (phase >= 2) 390f else 310f
+            val end = Vector2(start.x + dir.x * thrustLength, start.y + dir.y * thrustLength)
+            game.bossWarnings.add(BossWarning.line(
+                start = start,
+                end = end,
+                width = if (phase >= 2) 42f else 34f,
+                warnDuration = if (phase >= 2) 0.22f else 0.32f,
+                damage = if (phase >= 2) 32 else 22,
+                color = android.graphics.Color.parseColor("#AACCFF"),
+                effect = BossWarningEffect.THRUST
+            ))
+        }
+        val step = if (phase >= 2) 42f else 28f
+        position.x += dir.x * step
+        position.y += dir.y * step
     }
 
     // ========================
