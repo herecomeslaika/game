@@ -3,6 +3,8 @@ package com.game.roguelike.rendering
 import android.graphics.*
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.combat.ProjectileType
+import com.game.roguelike.entity.BossWarning
+import com.game.roguelike.entity.BossWarningShape
 import com.game.roguelike.entity.Merchant
 import com.game.roguelike.entity.Particle
 import com.game.roguelike.level.Door
@@ -229,6 +231,99 @@ class EntityRenderer(private val renderer: IsometricRenderer) {
         p.style = Paint.Style.FILL
         canvas.drawCircle(sx, sy - particle.heightOffset, particle.size, p)
         p.shader = null
+    }
+
+    fun renderBossWarning(canvas: Canvas, warning: BossWarning) {
+        val alpha = if (warning.resolved) 125 else (70 + 120 * (1f - warning.warningRatio)).toInt().coerceIn(70, 190)
+        val strokeAlpha = if (warning.resolved) 210 else 235
+        reset()
+        p.style = Paint.Style.FILL
+        p.color = Color.argb(alpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+
+        when (warning.shape) {
+            BossWarningShape.CIRCLE -> drawWarningCircle(canvas, warning, alpha, strokeAlpha)
+            BossWarningShape.LINE, BossWarningShape.WALL -> drawWarningLine(canvas, warning, alpha, strokeAlpha)
+            BossWarningShape.CROSS -> {
+                val horizontal = BossWarning.line(
+                    start = com.game.roguelike.util.Vector2(warning.position.x - warning.radius, warning.position.y),
+                    end = com.game.roguelike.util.Vector2(warning.position.x + warning.radius, warning.position.y),
+                    width = warning.width,
+                    warnDuration = warning.warnDuration,
+                    damage = warning.damage,
+                    color = warning.color
+                )
+                val vertical = BossWarning.line(
+                    start = com.game.roguelike.util.Vector2(warning.position.x, warning.position.y - warning.radius),
+                    end = com.game.roguelike.util.Vector2(warning.position.x, warning.position.y + warning.radius),
+                    width = warning.width,
+                    warnDuration = warning.warnDuration,
+                    damage = warning.damage,
+                    color = warning.color
+                )
+                drawWarningLine(canvas, horizontal, alpha, strokeAlpha)
+                drawWarningLine(canvas, vertical, alpha, strokeAlpha)
+            }
+            BossWarningShape.FAN -> drawWarningFan(canvas, warning, alpha, strokeAlpha)
+        }
+    }
+
+    private fun drawWarningCircle(canvas: Canvas, warning: BossWarning, alpha: Int, strokeAlpha: Int) {
+        val (sx, sy) = renderer.worldToScreen(warning.position)
+        val rx = warning.radius
+        val ry = warning.radius * 0.5f
+        reset()
+        p.color = Color.argb(alpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.FILL
+        canvas.drawOval(sx - rx, sy - ry, sx + rx, sy + ry, p)
+        reset()
+        p.color = Color.argb(strokeAlpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = if (warning.resolved) 4f else 2f + (1f - warning.warningRatio) * 5f
+        canvas.drawOval(sx - rx, sy - ry, sx + rx, sy + ry, p)
+    }
+
+    private fun drawWarningLine(canvas: Canvas, warning: BossWarning, alpha: Int, strokeAlpha: Int) {
+        val (sx1, sy1) = renderer.worldToScreen(warning.start)
+        val (sx2, sy2) = renderer.worldToScreen(warning.end)
+        reset()
+        p.color = Color.argb(alpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.STROKE
+        p.strokeCap = Paint.Cap.ROUND
+        p.strokeWidth = warning.width
+        canvas.drawLine(sx1, sy1, sx2, sy2, p)
+        reset()
+        p.color = Color.argb(strokeAlpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.STROKE
+        p.strokeCap = Paint.Cap.ROUND
+        p.strokeWidth = if (warning.resolved) 5f else 2f + (1f - warning.warningRatio) * 6f
+        canvas.drawLine(sx1, sy1, sx2, sy2, p)
+    }
+
+    private fun drawWarningFan(canvas: Canvas, warning: BossWarning, alpha: Int, strokeAlpha: Int) {
+        val fan = renderer.obtainPath()
+        val (cx, cy) = renderer.worldToScreen(warning.position)
+        fan.moveTo(cx, cy)
+        val steps = 16
+        for (i in 0..steps) {
+            val a = warning.angle - warning.arc / 2f + warning.arc * i / steps
+            val point = com.game.roguelike.util.Vector2(
+                warning.position.x + cos(a) * warning.radius,
+                warning.position.y + sin(a) * warning.radius
+            )
+            val (sx, sy) = renderer.worldToScreen(point)
+            fan.lineTo(sx, sy)
+        }
+        fan.close()
+        reset()
+        p.color = Color.argb(alpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.FILL
+        canvas.drawPath(fan, p)
+        reset()
+        p.color = Color.argb(strokeAlpha, Color.red(warning.color), Color.green(warning.color), Color.blue(warning.color))
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 2f + (1f - warning.warningRatio) * 4f
+        canvas.drawPath(fan, p)
+        renderer.recyclePath(fan)
     }
 
     fun renderDoor(canvas: Canvas, door: Door, room: Room) {

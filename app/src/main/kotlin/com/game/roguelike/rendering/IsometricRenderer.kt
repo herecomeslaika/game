@@ -172,6 +172,10 @@ class IsometricRenderer(val context: Context) {
         entityRenderer.renderParticle(canvas, particle)
     }
 
+    fun renderBossWarning(canvas: Canvas, warning: BossWarning) {
+        entityRenderer.renderBossWarning(canvas, warning)
+    }
+
     fun renderDoor(canvas: Canvas, door: Door, room: Room) {
         entityRenderer.renderDoor(canvas, door, room)
     }

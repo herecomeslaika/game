@@ -1,6 +1,5 @@
 package com.game.roguelike.entity
 
-import android.graphics.Color
 import com.game.roguelike.combat.ProjectileType
 
 data class EnemyConfig(
@@ -40,13 +39,10 @@ data class EnemyConfig(
     val bossName: String = "",
     val bossTitle: String = "",
     val bossPhaseThresholds: FloatArray = floatArrayOf(),
-    val dissolveColor: Int = Color.parseColor("#88AA66"),
-    val phaseTransitionColor: Int = Color.WHITE,
-    /** Layers where this enemy type can spawn (0-indexed). Empty = not a regular spawn. */
+    val dissolveColor: Int = 0xFF88AA66.toInt(),
+    val phaseTransitionColor: Int = 0xFFFFFFFF.toInt(),
     val spawnLayers: IntArray = intArrayOf(),
-    /** Relative weight for spawning (higher = more common). */
     val spawnWeight: Float = 1f,
-    /** Whether this is a boss type and which layer it appears on. -1 = not a boss. */
     val bossLayer: Int = -1
 ) {
     companion object {
@@ -71,7 +67,7 @@ data class EnemyConfig(
                 maxHealth = 30, speed = 80f, attackDamage = 8,
                 attackRange = 40f, attackCooldown = 1.2f, goldDrop = 8,
                 spawnLayers = intArrayOf(0), spawnWeight = 1f,
-                dissolveColor = Color.parseColor("#88AA66")
+                dissolveColor = 0xFF88AA66.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.WRAITH,
@@ -81,21 +77,21 @@ data class EnemyConfig(
                 isRanged = true, projectileSpeed = 180f, projectileType = ProjectileType.MAGIC_BOLT,
                 canPhaseShift = true, phaseShiftCooldown = 4f,
                 spawnLayers = intArrayOf(0), spawnWeight = 0.4f,
-                dissolveColor = Color.parseColor("#AA66EE")
+                dissolveColor = 0xFFAA66EE.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.MEGA_SKELETON,
                 name = "巨型骷髅",
-                maxHealth = 200, speed = 60f, attackDamage = 15,
-                attackRange = 50f, attackCooldown = 1.5f, goldDrop = 100,
+                maxHealth = 240, speed = 62f, attackDamage = 16,
+                attackRange = 54f, attackCooldown = 1.45f, goldDrop = 100,
                 width = 32f, height = 60f,
                 canSummon = true, summonCooldown = 5f, summonCount = 2,
                 canGroundSlam = false, groundSlamCooldown = 3f,
                 bossName = "冥骨巨灵", bossTitle = "塔耳塔洛斯之主",
                 bossPhaseThresholds = floatArrayOf(0.6f, 0.3f),
                 bossLayer = 0,
-                dissolveColor = Color.parseColor("#88AA66"),
-                phaseTransitionColor = Color.parseColor("#66FF66")
+                dissolveColor = 0xFF88AA66.toInt(),
+                phaseTransitionColor = 0xFF66FF66.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.FLAME_DANCER,
@@ -105,7 +101,7 @@ data class EnemyConfig(
                 leavesFireTrail = true,
                 canFlameDash = true, flameDashCooldown = 2.5f,
                 spawnLayers = intArrayOf(1), spawnWeight = 1f,
-                dissolveColor = Color.parseColor("#FF6622")
+                dissolveColor = 0xFFFF6622.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.LAVA_CASTER,
@@ -114,23 +110,23 @@ data class EnemyConfig(
                 attackRange = 250f, attackCooldown = 1.8f, goldDrop = 18,
                 isRanged = true, projectileSpeed = 200f, projectileType = ProjectileType.FIREBALL,
                 spawnLayers = intArrayOf(1), spawnWeight = 0.4f,
-                dissolveColor = Color.parseColor("#FF6622")
+                dissolveColor = 0xFFFF6622.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.INFERNO_TITAN,
                 name = "炼狱泰坦",
-                maxHealth = 350, speed = 50f, attackDamage = 20,
-                attackRange = 200f, attackCooldown = 2f, goldDrop = 150,
+                maxHealth = 390, speed = 52f, attackDamage = 21,
+                attackRange = 210f, attackCooldown = 1.9f, goldDrop = 150,
                 width = 40f, height = 70f,
-                isRanged = true, projectileSpeed = 160f, projectileType = ProjectileType.FIREBALL,
-                canCharge = true, chargeSpeed = 400f,
+                isRanged = true, projectileSpeed = 170f, projectileType = ProjectileType.FIREBALL,
+                canCharge = true, chargeSpeed = 430f,
                 canMeteor = false, meteorCooldown = 8f,
                 chargeComboMax = 3,
                 bossName = "炼狱泰坦", bossTitle = "阿斯福德的烈焰",
                 bossPhaseThresholds = floatArrayOf(0.5f),
                 bossLayer = 1,
-                dissolveColor = Color.parseColor("#FF6622"),
-                phaseTransitionColor = Color.parseColor("#FF6633")
+                dissolveColor = 0xFFFF6622.toInt(),
+                phaseTransitionColor = 0xFFFF6633.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.SHIELD_BEARER,
@@ -139,7 +135,7 @@ data class EnemyConfig(
                 attackRange = 40f, attackCooldown = 1.5f, goldDrop = 20,
                 hasShield = true, shieldBashCooldown = 3f,
                 spawnLayers = intArrayOf(2), spawnWeight = 1f,
-                dissolveColor = Color.parseColor("#6699DD")
+                dissolveColor = 0xFF6699DD.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.SPEAR_THROWER,
@@ -148,22 +144,22 @@ data class EnemyConfig(
                 attackRange = 300f, attackCooldown = 2f, goldDrop = 22,
                 isRanged = true, projectileSpeed = 250f, projectileType = ProjectileType.SPEAR,
                 spawnLayers = intArrayOf(2), spawnWeight = 0.4f,
-                dissolveColor = Color.parseColor("#6699DD")
+                dissolveColor = 0xFF6699DD.toInt()
             ))
             register(EnemyConfig(
                 type = EnemyType.CHAMPION,
                 name = "冠军勇士",
-                maxHealth = 500, speed = 70f, attackDamage = 18,
-                attackRange = 150f, attackCooldown = 1.5f, goldDrop = 200,
+                maxHealth = 520, speed = 74f, attackDamage = 18,
+                attackRange = 160f, attackCooldown = 1.4f, goldDrop = 200,
                 width = 32f, height = 60f,
-                isRanged = true, projectileSpeed = 220f, projectileType = ProjectileType.SPEAR,
+                isRanged = true, projectileSpeed = 230f, projectileType = ProjectileType.SPEAR,
                 hasShield = true,
                 canDodgeRoll = false, dodgeRollCooldown = 8f,
                 bossName = "永恒冠军", bossTitle = "伊利西昂的荣光",
                 bossPhaseThresholds = floatArrayOf(0.5f),
                 bossLayer = 2,
-                dissolveColor = Color.parseColor("#6699DD"),
-                phaseTransitionColor = Color.parseColor("#6699FF")
+                dissolveColor = 0xFF6699DD.toInt(),
+                phaseTransitionColor = 0xFF6699FF.toInt()
             ))
         }
     }

@@ -9,7 +9,9 @@ import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.core.BlessingRarity
 import com.game.roguelike.core.color
 import com.game.roguelike.core.icon
+import com.game.roguelike.entity.Enemy
 import com.game.roguelike.entity.Player
+import com.game.roguelike.entity.bossName
 
 class HUD {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -79,7 +81,16 @@ class HUD {
         )
     }
 
-    fun render(canvas: Canvas, player: Player, gold: Int, blessings: List<Blessing>, layerIndex: Int) {
+    fun render(
+        canvas: Canvas,
+        player: Player,
+        gold: Int,
+        blessings: List<Blessing>,
+        layerIndex: Int,
+        boss: Enemy? = null,
+        bossPhaseText: String = "",
+        bossPhaseTextTimer: Float = 0f
+    ) {
         bgPaint.color = Color.argb(150, 0, 0, 0)
         paint.style = Paint.Style.FILL
 
@@ -118,10 +129,52 @@ class HUD {
         renderBlessingStrip(canvas, blessings)
         renderCooldowns(canvas, player)
         renderBackButton(canvas)
+        renderBossBar(canvas, boss, bossPhaseText, bossPhaseTextTimer)
 
         if (isBlessingPanelOpen) {
             renderBlessingPanel(canvas, blessings)
         }
+    }
+
+    private fun renderBossBar(canvas: Canvas, boss: Enemy?, phaseText: String, phaseTimer: Float) {
+        if (boss == null) return
+
+        val screenW = canvas.width.toFloat()
+        val top = 30f
+        val bossBarW = (screenW * 0.5f).coerceIn(520f, 980f)
+        val bossBarH = 28f
+        val left = screenW / 2f - bossBarW / 2f
+        val rect = RectF(left, top, left + bossBarW, top + bossBarH)
+
+        bgPaint.color = Color.argb(190, 12, 6, 12)
+        canvas.drawRoundRect(rect, 5f, 5f, bgPaint)
+
+        val hpRatio = (boss.health.toFloat() / boss.maxHealth.toFloat()).coerceIn(0f, 1f)
+        val themeColor = boss.config.phaseTransitionColor
+        paint.color = themeColor
+        canvas.drawRoundRect(RectF(rect.left, rect.top, rect.left + bossBarW * hpRatio, rect.bottom), 5f, 5f, paint)
+
+        paint.color = Color.argb(230, 255, 240, 210)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        canvas.drawRoundRect(rect, 5f, 5f, paint)
+        paint.style = Paint.Style.FILL
+
+        paint.color = Color.WHITE
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 25f
+        paint.typeface = Typeface.DEFAULT_BOLD
+        canvas.drawText("${boss.type.bossName}  ${boss.health}/${boss.maxHealth}", screenW / 2f, top + 22f, paint)
+
+        if (phaseText.isNotEmpty() && phaseTimer > 0f) {
+            val alpha = (phaseTimer.coerceIn(0f, 1.2f) / 1.2f * 255).toInt().coerceIn(90, 255)
+            paint.color = Color.argb(alpha, Color.red(themeColor), Color.green(themeColor), Color.blue(themeColor))
+            paint.textSize = 34f
+            canvas.drawText(phaseText, screenW / 2f, top + 76f, paint)
+        }
+
+        paint.typeface = Typeface.DEFAULT
+        paint.textAlign = Paint.Align.LEFT
     }
 
     private fun renderBlessingStrip(canvas: Canvas, blessings: List<Blessing>) {

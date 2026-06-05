@@ -1,8 +1,11 @@
 package com.game.roguelike.entity
 
+import com.game.roguelike.core.EnemyState
 import com.game.roguelike.util.Vector2
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
 
 class EnemyDamageTest {
 
