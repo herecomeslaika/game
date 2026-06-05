@@ -1,8 +1,11 @@
 package com.game.roguelike.entity
 
+import com.game.roguelike.core.EnemyState
 import com.game.roguelike.util.Vector2
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
 
 class EnemyDamageTest {
 
@@ -83,6 +86,19 @@ class EnemyDamageTest {
         assertEquals("塔耳塔洛斯之主", EnemyType.MEGA_SKELETON.bossTitle)
         assertEquals("阿斯福德的烈焰", EnemyType.INFERNO_TITAN.bossTitle)
         assertEquals("伊利西昂的荣光", EnemyType.CHAMPION.bossTitle)
+    }
+
+    @Test
+    fun `boss configs scale up by layer with final boss clearly strongest`() {
+        val bone = EnemyConfig.forType(EnemyType.MEGA_SKELETON)
+        val titan = EnemyConfig.forType(EnemyType.INFERNO_TITAN)
+        val champion = EnemyConfig.forType(EnemyType.CHAMPION)
+
+        assertTrue(titan.maxHealth > bone.maxHealth)
+        assertTrue(champion.maxHealth > titan.maxHealth)
+        assertTrue(champion.maxHealth >= bone.maxHealth * 3)
+        assertTrue(champion.attackDamage > titan.attackDamage)
+        assertTrue(champion.attackCooldown < titan.attackCooldown)
     }
 
     @Test

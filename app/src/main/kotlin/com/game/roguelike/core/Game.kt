@@ -44,6 +44,7 @@ class Game(private val context: Context) {
     val projectiles = mutableListOf<Projectile>()
     val particles = mutableListOf<Particle>()
     val ghosts = mutableListOf<GhostSummon>()
+    val bossWarnings = mutableListOf<BossWarning>()
 
     var currentLayer: Layer? = null
     var currentRoom: Room? = null
@@ -85,12 +86,19 @@ class Game(private val context: Context) {
     var bossEntranceName = ""
     var bossEntranceTitle = ""
     var pendingBossType: EnemyType? = null
+    var bossPhaseText = ""
+    var bossPhaseTextTimer = 0f
     var timeScale = 1f
     private var hitstopTimer = 0f
 
     fun triggerHitstop(frames: Int) {
         hitstopTimer = frames * TICK
         timeScale = 0f
+    }
+
+    fun showBossMessage(text: String, duration: Float = 1.4f) {
+        bossPhaseText = text
+        bossPhaseTextTimer = duration
     }
 
     private fun updateHitstop(dt: Float) {
@@ -293,6 +301,9 @@ class Game(private val context: Context) {
         for (enemy in enemiesToUpdate) {
             enemy.update(dt, this)
         }
+
+        updateBossWarnings(dt)
+
         // Remove dead enemies after all updates
         val enemyIter = enemies.iterator()
         while (enemyIter.hasNext()) {
@@ -517,6 +528,23 @@ class Game(private val context: Context) {
         }
     }
 
+    private fun updateBossWarnings(dt: Float) {
+        if (bossPhaseTextTimer > 0f) {
+            bossPhaseTextTimer -= dt
+            if (bossPhaseTextTimer <= 0f) {
+                bossPhaseTextTimer = 0f
+                bossPhaseText = ""
+            }
+        }
+
+        val iter = bossWarnings.iterator()
+        while (iter.hasNext()) {
+            val warning = iter.next()
+            warning.update(dt, this)
+            if (warning.isDead) iter.remove()
+        }
+    }
+
     fun shake(amount: Float, duration: Float) {
         shakeAmount = amount
         shakeDuration = duration
@@ -559,6 +587,9 @@ class Game(private val context: Context) {
         enemies.clear()
         projectiles.clear()
         ghosts.clear()
+        bossWarnings.clear()
+        bossPhaseText = ""
+        bossPhaseTextTimer = 0f
         merchant = null
 
         player.position.set(room.spawnPoint)
@@ -776,6 +807,11 @@ class Game(private val context: Context) {
         // Render room
         renderer.renderRoom(canvas, room, player.position, TICK)
 
+        // Boss skill warnings
+        for (warning in bossWarnings) {
+            renderer.renderBossWarning(canvas, warning)
+        }
+
         // Depth-sort entities
         val entities = mutableListOf<Entity>()
         entities.add(player)
@@ -818,7 +854,16 @@ class Game(private val context: Context) {
         // UI (not affected by shake)
         virtualJoystick.render(canvas)
         actionButtons.render(canvas, this)
-        hud.render(canvas, player, gold, blessings, currentLayerIndex)
+        hud.render(
+            canvas = canvas,
+            player = player,
+            gold = gold,
+            blessings = blessings,
+            layerIndex = currentLayerIndex,
+            boss = enemies.firstOrNull { it.isBoss && !it.deathAnimationDone },
+            bossPhaseText = bossPhaseText,
+            bossPhaseTextTimer = bossPhaseTextTimer
+        )
     }
 
     private fun renderGameOver(canvas: android.graphics.Canvas) {

@@ -232,6 +232,14 @@ object SpearThrowerBehavior : EnemyBehavior {
 object MegaSkeletonBehavior : EnemyBehavior {
     override fun attack(enemy: Enemy, game: Game, distToPlayer: Float) {
         if (enemy.canGroundSlam && enemy.groundSlamTimer <= 0f && distToPlayer < 120f) {
+            game.bossWarnings.add(BossWarning.circle(
+                position = enemy.position,
+                radius = if (enemy.phase >= 2) 104f else 82f,
+                warnDuration = 0.45f,
+                damage = 18,
+                color = android.graphics.Color.parseColor("#AAFF66"),
+                effect = BossWarningEffect.SLAM
+            ))
             enemy.startGroundSlam()
             return
         }
@@ -254,22 +262,27 @@ object MegaSkeletonBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canGroundSlam = true; enemy.summonCount = 3; enemy.summonCooldown = 4f; enemy.speed *= 1.3f
-                enemy.attackCooldown *= 0.8f
+                enemy.canGroundSlam = true; enemy.summonCount = 3; enemy.summonCooldown = 3.6f; enemy.speed *= 1.25f
+                enemy.attackCooldown *= 0.78f
             }
             2 -> {
-                enemy.attackDamage = (enemy.attackDamage * 1.3f).toInt(); enemy.summonCount = 4; enemy.summonCooldown = 3f
-                enemy.bossEnrageCooldown = 4f
+                enemy.attackDamage = (enemy.attackDamage * 1.35f).toInt(); enemy.summonCount = 5; enemy.summonCooldown = 2.6f
+                enemy.bossEnrageCooldown = 3.1f
             }
         }
     }
 
     override fun executeBossEnrage(enemy: Enemy, game: Game) {
-        if (enemy.canGroundSlam && enemy.groundSlamTimer <= 0f) {
-            enemy.startGroundSlam()
-        } else if (enemy.canSummon && enemy.summonTimer <= 0f) {
-            enemy.summonMinions(game)
-            enemy.summonTimer = enemy.summonCooldown
+        when (enemy.bossSkillIndex++ % if (enemy.phase >= 2) 3 else 2) {
+            0 -> enemy.startBoneWallLockdown(game)
+            1 -> {
+                if (enemy.canSummon && enemy.summonTimer <= 0f) {
+                    enemy.summonMinions(game)
+                    enemy.summonTimer = enemy.summonCooldown
+                }
+                enemy.triggerCorpseBursts(game)
+            }
+            else -> enemy.startTripleGroundSlam(game)
         }
     }
 }
@@ -297,7 +310,12 @@ object InfernoTitanBehavior : EnemyBehavior {
 
     override fun updateChase(enemy: Enemy, dt: Float, game: Game, toPlayer: Vector2, distToPlayer: Float): Boolean {
         if (enemy.canMeteor && enemy.meteorTimer <= 0f && distToPlayer > 60f) {
-            enemy.startMeteorCast(game)
+            enemy.startMeteorRain(game)
+            return true
+        }
+        if (enemy.isBoss && enemy.phase >= 1 && !enemy.isFlameDashing && enemy.flameDashTimer <= 0f &&
+            distToPlayer > 85f && distToPlayer < 230f) {
+            enemy.startBlazingCharge(game)
             return true
         }
         return false
@@ -310,28 +328,19 @@ object InfernoTitanBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canMeteor = true; enemy.speed *= 1.3f; enemy.chargeComboMax = 2; enemy.meteorCooldown = 5f
-                enemy.attackCooldown *= 0.75f
-                enemy.bossEnrageCooldown = 5f
+                enemy.canMeteor = true; enemy.speed *= 1.35f; enemy.chargeComboMax = 3; enemy.meteorCooldown = 3.8f
+                enemy.attackCooldown *= 0.68f
+                enemy.bossEnrageCooldown = 3.5f
             }
         }
     }
 
     override fun executeBossEnrage(enemy: Enemy, game: Game) {
-        for (i in 0..7) {
-            val angle = i * Math.PI.toFloat() / 4f
-            val projDir = Vector2(cos(angle), sin(angle))
-            game.projectiles.add(Projectile(
-                position = Vector2(enemy.position.x + projDir.x * 20f, enemy.position.y + projDir.y * 20f),
-                velocity = projDir * enemy.projectileSpeed * 0.7f,
-                damage = enemy.attackDamage.toFloat() * 0.5f,
-                type = ProjectileType.FIREBALL,
-                maxRange = 350f,
-                isEnemyProjectile = true,
-                angle = projDir.angle
-            ))
+        when (enemy.bossSkillIndex++ % 3) {
+            0 -> enemy.startMeteorRain(game)
+            1 -> enemy.startBlazingCharge(game)
+            else -> enemy.startLavaCross(game)
         }
-        game.shake(4f, 0.1f)
     }
 }
 
@@ -347,11 +356,20 @@ object ChampionBehavior : EnemyBehavior {
             return
         }
         if (distToPlayer > 60f && enemy.isRanged) {
-            val dir = (game.player.position - enemy.position).normalized
-            enemy.fireSpear(game, dir)
+            enemy.startSpearFan(game)
         } else {
             enemy.dealDamageIfClose(game, enemy.attackDamage)
         }
+    }
+
+    override fun updateChase(enemy: Enemy, dt: Float, game: Game, toPlayer: Vector2, distToPlayer: Float): Boolean {
+        val thrustTriggerRange = if (enemy.phase >= 2) 230f else 150f
+        if (enemy.isBoss && enemy.phase >= 1 && distToPlayer < thrustTriggerRange && enemy.dodgeRollTimer <= 0f) {
+            enemy.startHeroicThrust(game)
+            enemy.dodgeRollTimer = enemy.dodgeRollCooldown
+            return true
+        }
+        return false
     }
 
     override fun updateTypeTimers(enemy: Enemy, dt: Float, game: Game) {
@@ -361,29 +379,32 @@ object ChampionBehavior : EnemyBehavior {
     override fun enterNextPhase(enemy: Enemy, phase: Int) {
         when (phase) {
             1 -> {
-                enemy.canDodgeRoll = true; enemy.speed *= 1.4f; enemy.shieldThrown = true
-                enemy.attackDamage = (enemy.attackDamage * 1.2f).toInt()
-                enemy.dodgeRollCooldown = 4f
-                enemy.bossEnrageCooldown = 3f
+                enemy.canDodgeRoll = true; enemy.speed *= 1.22f; enemy.shieldThrown = false
+                enemy.attackDamage = (enemy.attackDamage * 1.15f).toInt()
+                enemy.attackCooldown *= 0.8f
+                enemy.dodgeRollCooldown = 3.2f
+                enemy.bossEnrageCooldown = 2.4f
+            }
+            2 -> {
+                enemy.speed *= 1.28f
+                enemy.attackDamage = (enemy.attackDamage * 1.3f).toInt()
+                enemy.attackCooldown *= 0.62f
+                enemy.projectileSpeed *= 1.22f
+                enemy.dodgeRollCooldown = 1.9f
+                enemy.bossEnrageCooldown = 1.55f
             }
         }
     }
 
     override fun executeBossEnrage(enemy: Enemy, game: Game) {
-        val dir = (game.player.position - enemy.position).normalized
-        val baseAngle = atan2(dir.y, dir.x)
-        for (i in -1..1) {
-            val angle = baseAngle + i * 0.3f
-            val projDir = Vector2(cos(angle), sin(angle))
-            game.projectiles.add(Projectile(
-                position = Vector2(enemy.position.x + projDir.x * 15f, enemy.position.y + projDir.y * 15f),
-                velocity = projDir * enemy.projectileSpeed,
-                damage = enemy.attackDamage.toFloat() * 0.6f,
-                type = ProjectileType.SPEAR,
-                maxRange = 400f,
-                isEnemyProjectile = true,
-                angle = projDir.angle
-            ))
+        when (enemy.bossSkillIndex++ % if (enemy.phase >= 2) 4 else if (enemy.phase >= 1) 3 else 2) {
+            0 -> enemy.startShieldCounter(game)
+            1 -> enemy.startSpearFan(game)
+            2 -> enemy.startHeroicThrust(game)
+            else -> {
+                enemy.startSpearFan(game)
+                enemy.startHeroicThrust(game)
+            }
         }
     }
 }

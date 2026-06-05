@@ -150,6 +150,11 @@ class Enemy(
     var bossEnrageTimer = 0f
     var bossEnrageCooldown = 3f
     var bossSpecialReady = false
+    var bossSkillIndex = 0
+    var explodeOnDeath = false
+    var shieldCounterTimer = 0f
+    var flameDashSpeed = 600f
+    var flameDashTrailSize = 8f
 
     var hurtTimer = 0f
 
@@ -191,14 +196,20 @@ class Enemy(
         if (hasShield && !shieldThrown && !isShieldBashing) {
             val playerDir = if (game.player.position.x > position.x) 1 else -1
             if (playerDir == shieldDirection) {
+                if (isBoss && type == EnemyType.CHAMPION && shieldCounterTimer > 0f) {
+                    game.player.takeDamage((attackDamage * 1.4f).toInt(), game)
+                    val knockDir = (game.player.position - position).normalized
+                    game.player.position.x += knockDir.x * 55f
+                    game.player.position.y += knockDir.y * 55f
+                    game.showBossMessage("盾反！", 0.9f)
+                    spawnThemeParticles(game, android.graphics.Color.parseColor("#88AAFF"), 12, 95f, 0.35f, 4f)
+                    return
+                }
                 health -= (amount * 0.2f).toInt()
                 val knockDir = if (position.x > game.player.position.x) 1f else -1f
                 position.x += knockDir * 20f
                 if (health <= 0) {
-                    health = 0
-                    isDead = true
-                    deathAnimationTimer = deathAnimationDuration
-                    stateMachine.transitionTo(EnemyState.DEAD)
+                    die(game)
                 }
                 return
             }
@@ -220,22 +231,33 @@ class Enemy(
         }
 
         if (health <= 0) {
-            health = 0
-            isDead = true
-            deathAnimationTimer = deathAnimationDuration
-            stateMachine.transitionTo(EnemyState.DEAD)
-
-            for (i in 0..8) {
-                game.particles.add(Particle(
-                    position = Vector2(position.x, position.y),
-                    velocity = Vector2((Random.nextFloat() - 0.5f) * 120f, (Random.nextFloat() - 0.5f) * 120f),
-                    color = android.graphics.Color.parseColor("#FF6644"),
-                    life = 0.6f,
-                    size = 4f
-                ))
-            }
+            die(game)
         } else {
             checkPhaseTransition(game)
+        }
+    }
+
+    private fun die(game: Game) {
+        health = 0
+        isDead = true
+        deathAnimationTimer = deathAnimationDuration
+        stateMachine.transitionTo(EnemyState.DEAD)
+
+        if (explodeOnDeath) {
+            game.bossWarnings.add(BossWarning.circle(
+                position = position,
+                radius = 58f,
+                warnDuration = 0.28f,
+                damage = 12,
+                color = android.graphics.Color.parseColor("#AAFF88"),
+                effect = BossWarningEffect.CORPSE
+            ))
+        }
+
+        if (isBoss) {
+            spawnBossFinale(game)
+        } else {
+            spawnThemeParticles(game, android.graphics.Color.parseColor("#FF6644"), 9, 120f, 0.6f, 4f)
         }
     }
 
@@ -265,6 +287,7 @@ class Enemy(
         }
         game.shake(10f, 0.3f)
         game.audioManager.play("boss_phase")
+        game.showBossMessage("阶段 ${phase + 1}", 1.3f)
         behavior.enterNextPhase(this, phase)
     }
 
@@ -331,6 +354,7 @@ class Enemy(
         }
 
         behavior.updateTypeTimers(this, dt, game)
+        if (shieldCounterTimer > 0f) shieldCounterTimer -= dt
 
         updateBossEnrage(dt, game)
 
@@ -573,27 +597,204 @@ class Enemy(
         }
     }
 
+    fun startBoneWallLockdown(game: Game) {
+        val c = game.player.position
+        val wallColor = android.graphics.Color.parseColor("#CDEECC")
+        game.showBossMessage("骨墙封锁", 1.2f)
+        game.bossWarnings.add(BossWarning.wall(
+            start = Vector2(c.x - 110f, c.y - 82f),
+            end = Vector2(c.x - 110f, c.y + 82f),
+            width = 26f,
+            warnDuration = 0.62f,
+            color = wallColor
+        ))
+        game.bossWarnings.add(BossWarning.wall(
+            start = Vector2(c.x + 110f, c.y - 82f),
+            end = Vector2(c.x + 110f, c.y + 82f),
+            width = 26f,
+            warnDuration = 0.62f,
+            color = wallColor
+        ))
+        game.bossWarnings.add(BossWarning.wall(
+            start = Vector2(c.x - 110f, c.y - 82f),
+            end = Vector2(c.x + 110f, c.y - 82f),
+            width = 26f,
+            warnDuration = 0.62f,
+            color = wallColor
+        ))
+        if (phase >= 1) {
+            game.bossWarnings.add(BossWarning.wall(
+                start = Vector2(c.x - 110f, c.y + 82f),
+                end = Vector2(c.x + 110f, c.y + 82f),
+                width = 26f,
+                warnDuration = 0.62f,
+                color = wallColor
+            ))
+        }
+    }
+
+    fun triggerCorpseBursts(game: Game) {
+        val minions = game.enemies.filter { !it.isBoss && !it.isDead && it.type == EnemyType.SKELETON }.take(if (phase >= 2) 6 else 4)
+        game.showBossMessage("亡骸爆裂", 1.2f)
+        if (minions.isEmpty()) {
+            summonMinions(game)
+            return
+        }
+        for (minion in minions) {
+            minion.explodeOnDeath = true
+            minion.die(game)
+        }
+    }
+
+    fun startTripleGroundSlam(game: Game) {
+        val base = game.player.position
+        val slamColor = android.graphics.Color.parseColor("#AAFF66")
+        game.showBossMessage("王座震地三连", 1.4f)
+        for (i in 0..2) {
+            val offset = i - 1
+            game.bossWarnings.add(BossWarning.circle(
+                position = Vector2(base.x + offset * 46f, base.y + i * 18f),
+                radius = 86f + i * 20f,
+                warnDuration = 0.38f + i * 0.3f,
+                damage = 20 + i * 5,
+                color = slamColor,
+                effect = BossWarningEffect.SLAM
+            ))
+        }
+    }
+
+    fun startMeteorRain(game: Game) {
+        val target = game.player.position
+        game.showBossMessage("陨星标记雨", 1.3f)
+        val meteorCount = if (phase >= 1) 9 else 6
+        for (i in 0 until meteorCount) {
+            val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+            val dist = if (i == 0) 0f else 35f + Random.nextFloat() * (if (phase >= 1) 165f else 120f)
+            game.bossWarnings.add(BossWarning.circle(
+                position = Vector2(target.x + cos(angle) * dist, target.y + sin(angle) * dist),
+                radius = if (phase >= 1) 58f else 50f,
+                warnDuration = 0.5f + i * 0.09f,
+                damage = if (phase >= 1) 28 else 22,
+                color = android.graphics.Color.parseColor("#FF7733"),
+                effect = BossWarningEffect.METEOR
+            ))
+        }
+        meteorTimer = meteorCooldown
+    }
+
+    fun startLavaCross(game: Game) {
+        game.showBossMessage("熔岩十字喷发", 1.3f)
+        game.bossWarnings.add(BossWarning.cross(
+            position = game.player.position,
+            radius = if (phase >= 1) 240f else 190f,
+            width = if (phase >= 1) 44f else 36f,
+            warnDuration = 0.62f,
+            damage = if (phase >= 1) 30 else 24,
+            color = android.graphics.Color.parseColor("#FF5522")
+        ))
+        if (phase >= 1) {
+            val p = game.player.position
+            val color = android.graphics.Color.parseColor("#FF5522")
+            game.bossWarnings.add(BossWarning.line(
+                start = Vector2(p.x - 170f, p.y - 170f),
+                end = Vector2(p.x + 170f, p.y + 170f),
+                width = 36f,
+                warnDuration = 0.72f,
+                damage = 26,
+                color = color,
+                effect = BossWarningEffect.FIRE
+            ))
+            game.bossWarnings.add(BossWarning.line(
+                start = Vector2(p.x - 170f, p.y + 170f),
+                end = Vector2(p.x + 170f, p.y - 170f),
+                width = 36f,
+                warnDuration = 0.82f,
+                damage = 26,
+                color = color,
+                effect = BossWarningEffect.FIRE
+            ))
+        }
+    }
+
+    fun startBlazingCharge(game: Game) {
+        val dir = game.player.position - position
+        game.showBossMessage("烈焰冲锋残迹", 1.1f)
+        startFlameDash(dir, duration = if (phase >= 1) 0.82f else 0.55f, dashSpeed = if (phase >= 1) 980f else 850f, trailSize = if (phase >= 1) 22f else 16f)
+    }
+
+    fun startShieldCounter(game: Game) {
+        shieldCounterTimer = if (phase >= 2) 1.45f else 1.1f
+        game.showBossMessage("盾反窗口", 1.1f)
+        spawnThemeParticles(game, android.graphics.Color.parseColor("#88AAFF"), if (phase >= 2) 18 else 10, 95f, 0.5f, 4f)
+    }
+
+    fun startSpearFan(game: Game) {
+        val dir = (game.player.position - position).normalized
+        game.showBossMessage("三连投矛扇形", 1.2f)
+        val fanCount = if (type == EnemyType.CHAMPION && phase >= 2) 3 else 1
+        for (i in 0 until fanCount) {
+            val offset = (i - (fanCount - 1) / 2f) * 0.55f
+            game.bossWarnings.add(BossWarning.fan(
+                position = Vector2(position.x, position.y),
+                angle = dir.angle + offset,
+                arc = if (phase >= 2) 1.0f else 0.9f,
+                radius = if (phase >= 2) 360f else 285f,
+                warnDuration = if (phase >= 2) 0.38f else 0.55f,
+                damage = if (phase >= 2) 24 else 17,
+                color = android.graphics.Color.parseColor("#88AAFF"),
+                effect = BossWarningEffect.SPEAR
+            ))
+        }
+    }
+
+    fun startHeroicThrust(game: Game) {
+        val dir = (game.player.position - position).normalized
+        val perpendicular = Vector2(-dir.y, dir.x)
+        game.showBossMessage("英灵突刺", 1.1f)
+        val thrustCount = if (phase >= 2) 3 else 1
+        for (i in 0 until thrustCount) {
+            val offset = (i - (thrustCount - 1) / 2f) * 44f
+            val start = Vector2(position.x + perpendicular.x * offset, position.y + perpendicular.y * offset)
+            val thrustLength = if (phase >= 2) 390f else 310f
+            val end = Vector2(start.x + dir.x * thrustLength, start.y + dir.y * thrustLength)
+            game.bossWarnings.add(BossWarning.line(
+                start = start,
+                end = end,
+                width = if (phase >= 2) 42f else 34f,
+                warnDuration = if (phase >= 2) 0.22f else 0.32f,
+                damage = if (phase >= 2) 32 else 22,
+                color = android.graphics.Color.parseColor("#AACCFF"),
+                effect = BossWarningEffect.THRUST
+            ))
+        }
+        val step = if (phase >= 2) 42f else 28f
+        position.x += dir.x * step
+        position.y += dir.y * step
+    }
+
     // ========================
     // Shared special ability methods (called by behaviors)
     // ========================
 
-    fun startFlameDash(toPlayer: Vector2) {
+    fun startFlameDash(toPlayer: Vector2, duration: Float = 0.25f, dashSpeed: Float = 600f, trailSize: Float = 8f) {
         isFlameDashing = true
-        flameDashDuration = 0.25f
+        flameDashDuration = duration
         flameDashDir = toPlayer.normalized
+        flameDashSpeed = dashSpeed
+        flameDashTrailSize = trailSize
         flameDashTimer = flameDashCooldown
     }
 
     private fun updateFlameDash(dt: Float, game: Game) {
         flameDashDuration -= dt
-        position.x += flameDashDir.x * 600f * dt
-        position.y += flameDashDir.y * 600f * dt
+        position.x += flameDashDir.x * flameDashSpeed * dt
+        position.y += flameDashDir.y * flameDashSpeed * dt
         game.particles.add(Particle(
             position = Vector2(position.x + (Random.nextFloat() - 0.5f) * 8f, position.y + (Random.nextFloat() - 0.5f) * 8f),
             velocity = Vector2((Random.nextFloat() - 0.5f) * 20f, -30f),
             color = android.graphics.Color.parseColor("#FF6600"),
-            life = 1.5f,
-            size = 8f,
+            life = if (isBoss) 2.4f else 1.5f,
+            size = flameDashTrailSize,
             damage = 5f,
             isFireTrail = true
         ))
@@ -696,6 +897,9 @@ class Enemy(
             val spawnX = position.x + cos(angle) * dist
             val spawnY = position.y + sin(angle) * dist
             val minion = Enemy(EnemyType.SKELETON, Vector2(spawnX, spawnY), layerIndex)
+            if (isBoss && type == EnemyType.MEGA_SKELETON) {
+                minion.explodeOnDeath = true
+            }
             game.enemies.add(minion)
         }
         for (i in 0..8) {
@@ -770,6 +974,72 @@ class Enemy(
             isEnemyProjectile = true,
             angle = dir.angle
         ))
+    }
+
+    private fun spawnBossFinale(game: Game) {
+        val (mainColor, message) = when (type) {
+            EnemyType.MEGA_SKELETON -> android.graphics.Color.parseColor("#B8FFD0") to "冥骨王座崩解"
+            EnemyType.INFERNO_TITAN -> android.graphics.Color.parseColor("#FF6633") to "炼狱核心爆燃"
+            EnemyType.CHAMPION -> android.graphics.Color.parseColor("#88AAFF") to "英灵荣光散尽"
+            else -> config.phaseTransitionColor to "Boss 击破"
+        }
+        game.showBossMessage(message, 2.0f)
+        game.shake(18f, 0.45f)
+        spawnThemeParticles(game, mainColor, 46, 260f, 1.0f, 7f)
+
+        when (type) {
+            EnemyType.MEGA_SKELETON -> {
+                for (i in 0..2) {
+                    game.bossWarnings.add(BossWarning.circle(
+                        position = Vector2(position.x, position.y),
+                        radius = 70f + i * 42f,
+                        warnDuration = i * 0.08f,
+                        damage = 0,
+                        color = mainColor,
+                        effect = BossWarningEffect.BONE
+                    ))
+                }
+            }
+            EnemyType.INFERNO_TITAN -> {
+                game.bossWarnings.add(BossWarning.cross(
+                    position = Vector2(position.x, position.y),
+                    radius = 210f,
+                    width = 42f,
+                    warnDuration = 0.12f,
+                    damage = 0,
+                    color = mainColor
+                ))
+            }
+            EnemyType.CHAMPION -> {
+                for (i in 0..5) {
+                    val a = i * Math.PI.toFloat() * 2f / 6f
+                    game.projectiles.add(Projectile(
+                        position = Vector2(position.x, position.y),
+                        velocity = Vector2(cos(a), sin(a)) * 130f,
+                        damage = 0f,
+                        type = ProjectileType.SPEAR,
+                        maxRange = 90f,
+                        isEnemyProjectile = true,
+                        angle = a
+                    ))
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun spawnThemeParticles(game: Game, color: Int, count: Int, speed: Float, life: Float, size: Float) {
+        for (i in 0 until count) {
+            val angle = Random.nextFloat() * Math.PI.toFloat() * 2f
+            val spd = speed * (0.45f + Random.nextFloat() * 0.8f)
+            game.particles.add(Particle(
+                position = Vector2(position.x, position.y),
+                velocity = Vector2(cos(angle) * spd, sin(angle) * spd),
+                color = color,
+                life = life,
+                size = size
+            ))
+        }
     }
 
     override fun render(canvas: Canvas, renderer: IsometricRenderer) {

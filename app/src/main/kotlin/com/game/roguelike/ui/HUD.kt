@@ -9,7 +9,9 @@ import com.game.roguelike.blessing.Blessing
 import com.game.roguelike.core.BlessingRarity
 import com.game.roguelike.core.color
 import com.game.roguelike.core.icon
+import com.game.roguelike.entity.Enemy
 import com.game.roguelike.entity.Player
+import com.game.roguelike.entity.bossName
 
 class HUD {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -17,8 +19,8 @@ class HUD {
 
     private var hudX = 0f
     private var hudY = 0f
-    private var barWidth = 400f
-    private var barHeight = 36f
+    private var barWidth = 320f
+    private var barHeight = 24f
 
     private val backBtnRect = RectF()
     private val blessingPanelBtnRect = RectF()
@@ -47,30 +49,25 @@ class HUD {
     }
 
     fun updateLayout(screenW: Int, screenH: Int) {
-        hudX = 30f
-        hudY = 30f
-        barWidth = screenW * 0.35f
-        barHeight = 36f
+        hudX = 24f
+        hudY = 24f
+        barWidth = (screenW * 0.24f).coerceIn(230f, 390f)
+        barHeight = 24f
 
-        val backBtnWidth = 190f
-        val backBtnHeight = 78f
+        val backBtnWidth = 156f
+        val backBtnHeight = 60f
         backBtnRect.set(
-            screenW - backBtnWidth - 24f,
-            24f,
-            screenW - 24f,
-            24f + backBtnHeight
+            screenW - backBtnWidth - 20f,
+            20f,
+            screenW - 20f,
+            20f + backBtnHeight
         )
 
-        blessingPanelBtnRect.set(hudX - 8f, hudY + 128f, hudX + 280f, hudY + 210f)
+        blessingPanelBtnRect.set(hudX - 8f, hudY + 104f, hudX + 240f, hudY + 180f)
 
         val panelWidth = screenW * 0.42f
         val panelHeight = screenH * 0.58f
-        blessingPanelRect.set(
-            32f,
-            32f,
-            32f + panelWidth,
-            32f + panelHeight
-        )
+        blessingPanelRect.set(32f, 32f, 32f + panelWidth, 32f + panelHeight)
         blessingCloseRect.set(
             blessingPanelRect.right - 70f,
             blessingPanelRect.top + 18f,
@@ -79,49 +76,107 @@ class HUD {
         )
     }
 
-    fun render(canvas: Canvas, player: Player, gold: Int, blessings: List<Blessing>, layerIndex: Int) {
+    fun render(
+        canvas: Canvas,
+        player: Player,
+        gold: Int,
+        blessings: List<Blessing>,
+        layerIndex: Int,
+        boss: Enemy? = null,
+        bossPhaseText: String = "",
+        bossPhaseTextTimer: Float = 0f
+    ) {
         bgPaint.color = Color.argb(150, 0, 0, 0)
         paint.style = Paint.Style.FILL
 
-        val hpBgRect = RectF(hudX, hudY, hudX + barWidth, hudY + barHeight)
-        canvas.drawRoundRect(hpBgRect, 4f, 4f, bgPaint)
-
-        val hpRatio = player.health.toFloat() / player.maxHealth
-        val hpColor = when {
-            hpRatio > 0.6f -> Color.parseColor("#44CC44")
-            hpRatio > 0.3f -> Color.parseColor("#CCCC44")
-            else -> Color.parseColor("#CC4444")
-        }
-        paint.color = hpColor
-        val hpFillRect = RectF(hudX, hudY, hudX + barWidth * hpRatio, hudY + barHeight)
-        canvas.drawRoundRect(hpFillRect, 4f, 4f, paint)
-
-        paint.color = Color.WHITE
-        paint.textSize = 28f
-        paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("生命 ${player.health}/${player.maxHealth}", hudX + 12f, hudY + 26f, paint)
-
-        paint.color = Color.parseColor("#FFD700")
-        paint.textSize = 26f
-        canvas.drawText("金币: $gold", hudX, hudY + 75f, paint)
-
-        val layerName = when (layerIndex) {
-            0 -> "塔耳塔罗斯"
-            1 -> "阿斯福德"
-            2 -> "伊利西亚"
-            else -> "未知"
-        }
-        paint.color = Color.parseColor("#AABBCC")
-        paint.textSize = 24f
-        canvas.drawText(layerName, hudX, hudY + 115f, paint)
-
+        renderPlayerVitals(canvas, player, gold, layerIndex)
         renderBlessingStrip(canvas, blessings)
         renderCooldowns(canvas, player)
         renderBackButton(canvas)
+        renderBossBar(canvas, boss, bossPhaseText, bossPhaseTextTimer)
 
         if (isBlessingPanelOpen) {
             renderBlessingPanel(canvas, blessings)
         }
+    }
+
+    private fun renderPlayerVitals(canvas: Canvas, player: Player, gold: Int, layerIndex: Int) {
+        val hpBgRect = RectF(hudX, hudY, hudX + barWidth, hudY + barHeight)
+        canvas.drawRoundRect(hpBgRect, 4f, 4f, bgPaint)
+
+        val hpRatio = player.health.toFloat() / player.maxHealth
+        paint.color = when {
+            hpRatio > 0.6f -> Color.parseColor("#44CC44")
+            hpRatio > 0.3f -> Color.parseColor("#CCCC44")
+            else -> Color.parseColor("#CC4444")
+        }
+        canvas.drawRoundRect(RectF(hudX, hudY, hudX + barWidth * hpRatio, hudY + barHeight), 4f, 4f, paint)
+
+        paint.color = Color.WHITE
+        paint.textSize = 19f
+        paint.textAlign = Paint.Align.LEFT
+        canvas.drawText("生命 ${player.health}/${player.maxHealth}", hudX + 9f, hudY + 18f, paint)
+
+        paint.color = Color.parseColor("#FFD700")
+        paint.textSize = 21f
+        canvas.drawText("金币: $gold", hudX, hudY + 58f, paint)
+
+        val layerName = when (layerIndex) {
+            0 -> "塔耳塔洛斯"
+            1 -> "阿斯福德"
+            2 -> "伊利西昂"
+            else -> "未知"
+        }
+        paint.color = Color.parseColor("#AABBCC")
+        paint.textSize = 19f
+        canvas.drawText(layerName, hudX, hudY + 88f, paint)
+    }
+
+    private fun renderBossBar(canvas: Canvas, boss: Enemy?, phaseText: String, phaseTimer: Float) {
+        if (boss == null) return
+
+        val screenW = canvas.width.toFloat()
+        val top = 16f
+        val bossBarW = (screenW * 0.36f).coerceIn(300f, 680f)
+        val bossBarH = 20f
+        val left = screenW / 2f - bossBarW / 2f
+        val rect = RectF(left, top, left + bossBarW, top + bossBarH)
+
+        bgPaint.color = Color.argb(190, 12, 6, 12)
+        canvas.drawRoundRect(rect, 5f, 5f, bgPaint)
+
+        val hpRatio = (boss.health.toFloat() / boss.maxHealth.toFloat()).coerceIn(0f, 1f)
+        val themeColor = boss.config.phaseTransitionColor
+        paint.color = themeColor
+        canvas.drawRoundRect(RectF(rect.left, rect.top, rect.left + bossBarW * hpRatio, rect.bottom), 5f, 5f, paint)
+
+        paint.color = Color.argb(230, 255, 240, 210)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 2f
+        canvas.drawRoundRect(rect, 5f, 5f, paint)
+        paint.style = Paint.Style.FILL
+
+        paint.color = Color.argb(215, 255, 235, 210)
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 16f
+        paint.typeface = Typeface.DEFAULT
+        canvas.drawText("${boss.health}/${boss.maxHealth}", screenW / 2f, rect.top + 15f, paint)
+
+        paint.color = Color.WHITE
+        paint.textSize = 22f
+        paint.typeface = Typeface.DEFAULT_BOLD
+        canvas.drawText(boss.type.bossName, screenW / 2f, rect.bottom + 23f, paint)
+
+        if (phaseText.isNotEmpty() && phaseTimer > 0f) {
+            val alpha = (phaseTimer.coerceIn(0f, 1.2f) / 1.2f * 255).toInt().coerceIn(90, 255)
+            paint.color = Color.argb(alpha, Color.red(themeColor), Color.green(themeColor), Color.blue(themeColor))
+            paint.textSize = 28f
+            paint.typeface = Typeface.DEFAULT_BOLD
+            canvas.drawText(phaseText, screenW / 2f, rect.bottom + 58f, paint)
+        }
+
+        paint.typeface = Typeface.DEFAULT
+        paint.textAlign = Paint.Align.LEFT
     }
 
     private fun renderBlessingStrip(canvas: Canvas, blessings: List<Blessing>) {
@@ -130,106 +185,94 @@ class HUD {
         } else {
             Color.argb(110, 15, 20, 35)
         }
-        canvas.drawRoundRect(blessingPanelBtnRect, 14f, 14f, bgPaint)
+        canvas.drawRoundRect(blessingPanelBtnRect, 12f, 12f, bgPaint)
 
         paint.color = Color.argb(180, 255, 255, 255)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2f
-        canvas.drawRoundRect(blessingPanelBtnRect, 14f, 14f, paint)
+        canvas.drawRoundRect(blessingPanelBtnRect, 12f, 12f, paint)
         paint.style = Paint.Style.FILL
 
         paint.color = Color.parseColor("#DDDDDD")
-        paint.textSize = 22f
+        paint.textSize = 19f
         paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("祝福 ${blessings.size} 个", hudX + 6f, hudY + 152f, paint)
+        canvas.drawText("祝福 ${blessings.size} 个", hudX + 6f, hudY + 128f, paint)
 
         var bx = hudX + 8f
-        val by = hudY + 185f
-        paint.textSize = 20f
-        for (blessing in blessings.take(6)) {
+        val by = hudY + 158f
+        paint.textSize = 18f
+        for (blessing in blessings.take(5)) {
             paint.color = blessing.god.color
-            canvas.drawCircle(bx + 16f, by, 16f, paint)
+            canvas.drawCircle(bx + 14f, by, 14f, paint)
 
             if (blessing.rarity == BlessingRarity.DUO) {
                 paint.color = Color.parseColor("#FFD700")
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 4f
-                canvas.drawCircle(bx + 16f, by, 24f, paint)
+                paint.strokeWidth = 3f
+                canvas.drawCircle(bx + 14f, by, 21f, paint)
                 paint.style = Paint.Style.FILL
                 paint.strokeWidth = 1f
             }
 
             paint.color = Color.WHITE
-            canvas.drawText(blessing.god.icon, bx + 8f, by + 8f, paint)
-            bx += 44f
+            canvas.drawText(blessing.god.icon, bx + 7f, by + 7f, paint)
+            bx += 40f
         }
 
-        if (blessings.size > 6) {
+        if (blessings.size > 5) {
             paint.color = Color.parseColor("#BBBBBB")
-            paint.textSize = 18f
-            canvas.drawText("+${blessings.size - 6}", bx + 4f, by + 6f, paint)
+            paint.textSize = 17f
+            canvas.drawText("+${blessings.size - 5}", bx + 4f, by + 5f, paint)
         }
     }
 
     private fun renderCooldowns(canvas: Canvas, player: Player) {
-        val cdX = hudX + barWidth + 40f
+        val cdX = hudX + barWidth + 28f
         val cdY = hudY
 
         if (player.specialCooldownTimer > 0) {
             val ratio = player.specialCooldownTimer / player.specialCooldown
-            canvas.drawRoundRect(RectF(cdX, cdY, cdX + 120f, cdY + 20f), 6f, 6f, bgPaint)
+            canvas.drawRoundRect(RectF(cdX, cdY, cdX + 94f, cdY + 16f), 5f, 5f, bgPaint)
             paint.color = Color.argb(200, 80, 80, 220)
-            canvas.drawRoundRect(RectF(cdX, cdY, cdX + 120f * (1f - ratio), cdY + 20f), 6f, 6f, paint)
+            canvas.drawRoundRect(RectF(cdX, cdY, cdX + 94f * (1f - ratio), cdY + 16f), 5f, 5f, paint)
         } else {
             paint.color = Color.parseColor("#4488FF")
-            paint.textSize = 22f
-            canvas.drawText("飞刀 就绪", cdX, cdY + 18f, paint)
+            paint.textSize = 18f
+            canvas.drawText("飞刃 就绪", cdX, cdY + 15f, paint)
         }
 
         if (player.dashCooldownTimer > 0) {
             val ratio = player.dashCooldownTimer / player.dashCooldown
-            canvas.drawRoundRect(RectF(cdX, cdY + 30f, cdX + 120f, cdY + 50f), 6f, 6f, bgPaint)
+            canvas.drawRoundRect(RectF(cdX, cdY + 25f, cdX + 94f, cdY + 41f), 5f, 5f, bgPaint)
             paint.color = Color.argb(200, 80, 220, 80)
-            canvas.drawRoundRect(RectF(cdX, cdY + 30f, cdX + 120f * (1f - ratio), cdY + 50f), 6f, 6f, paint)
+            canvas.drawRoundRect(RectF(cdX, cdY + 25f, cdX + 94f * (1f - ratio), cdY + 41f), 5f, 5f, paint)
         } else {
             paint.color = Color.parseColor("#44FF88")
-            paint.textSize = 22f
-            canvas.drawText("冲刺 就绪", cdX, cdY + 48f, paint)
+            paint.textSize = 18f
+            canvas.drawText("冲刺 就绪", cdX, cdY + 40f, paint)
         }
 
         if (player.athenaShieldActive) {
             paint.color = Color.parseColor("#FFAA44")
-            paint.textSize = 22f
-            canvas.drawText("神盾 激活", cdX, cdY + 78f, paint)
-        }
-
-        if (player.critChance > 0f) {
-            paint.color = Color.parseColor("#FF44AA")
-            paint.textSize = 22f
-            canvas.drawText("暴击${(player.critChance * 100).toInt()}%", cdX, cdY + 108f, paint)
-        }
-
-        if (player.slowOnHit > 0f) {
-            paint.color = Color.parseColor("#88CCFF")
-            paint.textSize = 22f
-            canvas.drawText("冰霜", cdX, cdY + 138f, paint)
+            paint.textSize = 18f
+            canvas.drawText("神盾 激活", cdX, cdY + 65f, paint)
         }
     }
 
     private fun renderBackButton(canvas: Canvas) {
         bgPaint.color = Color.argb(180, 0, 0, 0)
-        canvas.drawRoundRect(backBtnRect, 16f, 16f, bgPaint)
+        canvas.drawRoundRect(backBtnRect, 12f, 12f, bgPaint)
 
         paint.color = Color.argb(180, 255, 255, 255)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2f
-        canvas.drawRoundRect(backBtnRect, 16f, 16f, paint)
+        canvas.drawRoundRect(backBtnRect, 12f, 12f, paint)
         paint.style = Paint.Style.FILL
 
         paint.color = Color.parseColor("#FF8888")
-        paint.textSize = 40f
+        paint.textSize = 30f
         paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("返回", backBtnRect.centerX(), backBtnRect.centerY() + 14f, paint)
+        canvas.drawText("返回", backBtnRect.centerX(), backBtnRect.centerY() + 10f, paint)
         paint.textAlign = Paint.Align.LEFT
     }
 
@@ -251,7 +294,7 @@ class HUD {
         paint.color = Color.parseColor("#FF7777")
         paint.textSize = 28f
         paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("×", blessingCloseRect.centerX(), blessingCloseRect.centerY() + 10f, paint)
+        canvas.drawText("X", blessingCloseRect.centerX(), blessingCloseRect.centerY() + 10f, paint)
         paint.textAlign = Paint.Align.LEFT
         paint.typeface = Typeface.DEFAULT
 
@@ -265,12 +308,7 @@ class HUD {
         var y = blessingPanelRect.top + 92f
         val itemHeight = 72f
         for (blessing in blessings.take(6)) {
-            val itemRect = RectF(
-                blessingPanelRect.left + 18f,
-                y - 34f,
-                blessingPanelRect.right - 18f,
-                y + 28f
-            )
+            val itemRect = RectF(blessingPanelRect.left + 18f, y - 34f, blessingPanelRect.right - 18f, y + 28f)
             bgPaint.color = Color.argb(95, 255, 255, 255)
             canvas.drawRoundRect(itemRect, 12f, 12f, bgPaint)
 
@@ -295,7 +333,6 @@ class HUD {
             paint.color = Color.parseColor("#BBBBBB")
             paint.textSize = 18f
             canvas.drawText(blessing.description.take(24), itemRect.left + 48f, y + 24f, paint)
-
             y += itemHeight
         }
     }

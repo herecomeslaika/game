@@ -21,24 +21,24 @@ class Vector2Test {
     @Test
     fun `magnitude returns correct length`() {
         val v = Vector2(3f, 4f)
-        assertEquals(5f, v.magnitude(), 0.001f)
+        assertEquals(5f, v.magnitude, 0.001f)
     }
 
     @Test
     fun `magnitude of zero vector is zero`() {
-        assertEquals(0f, Vector2.ZERO.magnitude(), 0.001f)
+        assertEquals(0f, Vector2.ZERO.magnitude, 0.001f)
     }
 
     @Test
     fun `normalized returns unit vector`() {
         val v = Vector2(3f, 4f)
-        val n = v.normalized()
-        assertEquals(1f, n.magnitude(), 0.001f)
+        val n = v.normalized
+        assertEquals(1f, n.magnitude, 0.001f)
     }
 
     @Test
     fun `normalized of zero vector returns zero`() {
-        val n = Vector2.ZERO.normalized()
+        val n = Vector2.ZERO.normalized
         assertEquals(0f, n.x, 0.001f)
         assertEquals(0f, n.y, 0.001f)
     }
@@ -86,11 +86,11 @@ class Vector2Test {
 
     @Test
     fun `fromAngle returns correct direction`() {
-        val right = Vector2.fromAngle(0.0)
+        val right = Vector2.fromAngle(0f)
         assertEquals(1f, right.x, 0.001f)
         assertEquals(0f, right.y, 0.001f)
 
-        val down = Vector2.fromAngle(Math.PI / 2)
+        val down = Vector2.fromAngle((Math.PI / 2).toFloat())
         assertEquals(0f, down.x, 0.001f)
         assertEquals(1f, down.y, 0.001f)
     }

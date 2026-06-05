@@ -145,12 +145,6 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
             canvas.drawRect(sx - barW / 2, sy - enemy.height - 8f, sx + barW / 2, sy - enemy.height - 8f + barH, p)
         }
 
-        if (enemy.isBoss && !isDying) {
-            renderer.textPaint.color = Color.parseColor("#FF6644")
-            renderer.textPaint.textSize = 28f
-            canvas.drawText(enemy.name, sx - renderer.textPaint.measureText(enemy.name) / 2, sy - enemy.height - 16f, renderer.textPaint)
-        }
-
         // Death animation: enhanced spiral particles
         if (isDying) {
             val dissolveColor = enemy.config.dissolveColor
