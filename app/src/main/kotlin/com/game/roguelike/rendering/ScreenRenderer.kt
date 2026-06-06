@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import com.game.roguelike.R
 import com.game.roguelike.network.LobbyPlayer
+import com.game.roguelike.network.LobbyRules
 import com.game.roguelike.network.RoomInfo
 import com.game.roguelike.network.RoomManager
 import kotlin.math.sin
@@ -132,33 +133,11 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         // 添加网格背景效果
         drawGridBackground(canvas, w, h)
 
-        // 标题背景 - 带渐变边框
-        val titleBarHeight = h * 0.2f
-        val titleBgPaint = Paint().apply {
-            color = Color.argb(80, 153, 0, 0)
-            style = Paint.Style.FILL
-        }
-        canvas.drawRect(0f, 0f, w.toFloat(), titleBarHeight, titleBgPaint)
-        
-        // 顶部装饰线
-        renderer.paint.color = Color.parseColor("#FF6B35")
-        renderer.paint.strokeWidth = 3f
-        canvas.drawLine(0f, titleBarHeight - 5f, w.toFloat(), titleBarHeight - 5f, renderer.paint)
-
-        // 标题
-        renderer.titlePaint.textSize = 130f
-        renderer.titlePaint.color = Color.parseColor("#FFD700")
-        renderer.titlePaint.textAlign = Paint.Align.CENTER
-        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
-        renderer.titlePaint.setShadowLayer(8f, 0f, 4f, Color.BLACK)
-        canvas.drawText("联机大厅", w / 2f, h * 0.15f, renderer.titlePaint)
-        renderer.titlePaint.clearShadowLayer()
-
         val btnCenterX = w / 2f
-        var btnY = h * 0.32f
+        var btnY = h * 0.24f
         val btnWidth = 520f
         val btnHeight = 100f
-        val btnSpacing = 160f
+        val btnSpacing = 145f
 
         // 创建房间按钮
         drawButtonWithGlow(canvas, btnCenterX, btnY, btnWidth, btnHeight, 
@@ -178,7 +157,7 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         renderer.subtitlePaint.textSize = 40f
         renderer.subtitlePaint.color = Color.parseColor("#888888")
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
-        canvas.drawText("2-4人联机对战", w / 2f, h * 0.92f, renderer.subtitlePaint)
+        canvas.drawText("2-4人联机对战", w / 2f, h * 0.82f, renderer.subtitlePaint)
 
         // 恢复设置
         renderer.titlePaint.textAlign = Paint.Align.CENTER
@@ -192,13 +171,24 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
                                    text: String, color: Int, rect: RectF) {
         // 更新点击区域
         rect.set(cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2)
-        
-        // 只绘制文字 - 无底纹
-        renderer.subtitlePaint.textSize = 65f
+
+        renderer.paint.style = Paint.Style.FILL
+        renderer.paint.color = Color.argb(34, (color shr 16) and 0xFF, (color shr 8) and 0xFF, color and 0xFF)
+        canvas.drawRoundRect(rect.left - 10f, rect.top - 10f, rect.right + 10f, rect.bottom + 10f, 14f, 14f, renderer.paint)
+
+        renderer.paint.color = Color.argb(170, 12, 18, 32)
+        canvas.drawRoundRect(rect, 10f, 10f, renderer.paint)
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2.5f
+        renderer.paint.color = color
+        canvas.drawRoundRect(rect, 10f, 10f, renderer.paint)
+
+        renderer.subtitlePaint.textSize = (height * 0.55f).coerceIn(34f, 65f)
         renderer.subtitlePaint.color = color
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
         renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
-        canvas.drawText(text, cx, cy + 23f, renderer.subtitlePaint)
+        canvas.drawText(text, cx, cy + renderer.subtitlePaint.textSize * 0.34f, renderer.subtitlePaint)
     }
     
     /**
@@ -230,49 +220,19 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         // 背景网格
         drawGridBackground(canvas, w, h)
 
-        // 顶部标题区
-        val titleBarHeight = h * 0.15f
-        val titleBgPaint = Paint().apply {
-            color = Color.argb(80, 33, 150, 243)
-            style = Paint.Style.FILL
-        }
-        canvas.drawRect(0f, 0f, w.toFloat(), titleBarHeight, titleBgPaint)
-        
-        renderer.paint.color = Color.parseColor("#2196F3")
-        renderer.paint.strokeWidth = 3f
-        canvas.drawLine(0f, titleBarHeight - 5f, w.toFloat(), titleBarHeight - 5f, renderer.paint)
-
-        // 标题
-        renderer.titlePaint.textSize = 110f
-        renderer.titlePaint.color = Color.parseColor("#64B5F6")
-        renderer.titlePaint.textAlign = Paint.Align.CENTER
-        renderer.titlePaint.setShadowLayer(8f, 0f, 4f, Color.BLACK)
-        canvas.drawText("可用房间", w / 2f, h * 0.1f, renderer.titlePaint)
-        renderer.titlePaint.clearShadowLayer()
-
-        val listY = h * 0.2f
-        val itemHeight = 90f
-        val itemSpacing = 10f
-        val itemWidth = w * 0.8f
-        val itemX = w * 0.1f
+        val listY = h * 0.12f
+        val itemHeight = 96f
+        val itemSpacing = 14f
+        val itemWidth = w * 0.72f
+        val itemX = w * 0.14f
 
         roomListRects.clear()
 
         if (rooms.isEmpty()) {
-            // 无房间提示 - 改进设计
-            renderer.subtitlePaint.textSize = 50f
-            renderer.subtitlePaint.color = Color.parseColor("#888888")
-            renderer.subtitlePaint.textAlign = Paint.Align.CENTER
-            canvas.drawText("正在搜索房间...", w / 2f, h * 0.45f, renderer.subtitlePaint)
-            
-            renderer.subtitlePaint.textSize = 40f
-            canvas.drawText("请确保设备在同一局域网下", w / 2f, h * 0.52f, renderer.subtitlePaint)
-            
-            // 添加加载动画
-            drawLoadingAnimation(canvas, w / 2f, h * 0.65f)
+            drawCompactRoomSearchEmptyState(canvas, w, h)
         } else {
             // 显示房间列表信息
-            renderer.subtitlePaint.textSize = 38f
+            renderer.subtitlePaint.textSize = 36f
             renderer.subtitlePaint.color = Color.parseColor("#AAAAAA")
             renderer.subtitlePaint.textAlign = Paint.Align.LEFT
             canvas.drawText("找到 ${rooms.size} 个房间:", itemX, listY - 20f, renderer.subtitlePaint)
@@ -324,12 +284,37 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         }
 
         // 返回按钮
-        val returnBtnY = h * 0.9f
+        val returnBtnY = h * 0.84f
         drawButtonWithGlow(canvas, w / 2f, returnBtnY, 360f, 70f,
             "返回", Color.parseColor("#757575"), backToMenuBtnRect)
 
         // 恢复设置
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+    }
+
+    private fun drawCompactRoomSearchEmptyState(canvas: Canvas, w: Int, h: Int) {
+        val panel = RectF(w * 0.30f, h * 0.28f, w * 0.70f, h * 0.54f)
+        renderer.paint.style = Paint.Style.FILL
+        renderer.paint.color = Color.argb(120, 12, 18, 32)
+        canvas.drawRoundRect(panel, 14f, 14f, renderer.paint)
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2f
+        renderer.paint.color = Color.argb(130, 100, 181, 246)
+        canvas.drawRoundRect(panel, 14f, 14f, renderer.paint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.subtitlePaint.textSize = 42f
+        renderer.subtitlePaint.color = Color.parseColor("#B8C2D6")
+        canvas.drawText("正在搜索房间...", w / 2f, h * 0.37f, renderer.subtitlePaint)
+
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+        renderer.subtitlePaint.textSize = 30f
+        renderer.subtitlePaint.color = Color.parseColor("#7F8EA3")
+        canvas.drawText("请确保设备在同一局域网下", w / 2f, h * 0.43f, renderer.subtitlePaint)
+
+        drawLoadingAnimation(canvas, w / 2f, h * 0.50f)
     }
     
     /**
@@ -374,50 +359,18 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         drawGridBackground(canvas, w, h)
 
         val isHost = roomManager.isHost
-        val roomCode = roomManager.roomCode
         val players = roomManager.lobbyPlayers
 
-        // ===== 顶部标题区 =====
-        val titleBarHeight = h * 0.1f
-        val titleBgPaint = Paint().apply {
-            color = Color.argb(60, 153, 0, 0)
-            style = Paint.Style.FILL
+        val canStart = LobbyRules.canStartGame(players)
+        val readyGuests = players.count { !it.isHost && it.isReady }
+        val statusText = when {
+            canStart -> "已有 $readyGuests 名玩家准备，房主可以开始"
+            players.none { !it.isHost } -> "等待玩家加入房间"
+            isHost -> "等待玩家点击准备"
+            players.any { it.playerId == roomManager.localPlayerId && it.isReady } -> "已准备，等待房主开始"
+            else -> "点击准备后即可开始"
         }
-        canvas.drawRect(0f, 0f, w.toFloat(), titleBarHeight, titleBgPaint)
-        
-        renderer.paint.color = Color.parseColor("#FF6B35")
-        renderer.paint.strokeWidth = 2f
-        canvas.drawLine(0f, titleBarHeight - 3f, w.toFloat(), titleBarHeight - 3f, renderer.paint)
-
-        // 标题
-        renderer.titlePaint.textSize = 70f
-        renderer.titlePaint.color = Color.parseColor("#FFD700")
-        renderer.titlePaint.textAlign = Paint.Align.CENTER
-        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
-        renderer.titlePaint.setShadowLayer(6f, 0f, 3f, Color.BLACK)
-        canvas.drawText("等待开始", w / 2f, h * 0.065f, renderer.titlePaint)
-        renderer.titlePaint.clearShadowLayer()
-
-        // ===== 房间码和玩家计数（仅房主显示，水平布局） =====
-        if (isHost) {
-            // 房间号左侧显示
-            renderer.subtitlePaint.textSize = 32f
-            renderer.subtitlePaint.color = Color.parseColor("#888888")
-            renderer.subtitlePaint.textAlign = Paint.Align.LEFT
-            canvas.drawText("房间号: ", w * 0.1f, h * 0.15f, renderer.subtitlePaint)
-            
-            renderer.titlePaint.textSize = 72f
-            renderer.titlePaint.color = Color.parseColor("#FFD700")
-            renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
-            canvas.drawText(roomCode, w * 0.28f, h * 0.15f, renderer.titlePaint)
-            
-            // 玩家计数右侧显示
-            renderer.subtitlePaint.textSize = 32f
-            renderer.subtitlePaint.color = Color.parseColor("#AAAAAA")
-            renderer.subtitlePaint.textAlign = Paint.Align.RIGHT
-            val playerCount = "${players.size}/${4}"  // 最多4人
-            canvas.drawText("玩家: $playerCount", w * 0.9f, h * 0.15f, renderer.subtitlePaint)
-        }
+        drawCompactRoomSummary(canvas, w, h, roomManager, statusText, canStart)
 
         // ===== 玩家列表区 =====
         drawPlayerListSection(canvas, w, h, players, isHost)
@@ -425,9 +378,9 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         // ===== 底部按钮区 =====
         val btnAreaY = h * 0.78f
         if (isHost) {
-            drawHostButtons(canvas, w, h, btnAreaY, players)
+            drawHostButtons(canvas, w, btnAreaY, players)
         } else {
-            drawClientButtons(canvas, w, h, btnAreaY, players)
+            drawClientButtons(canvas, w, btnAreaY, roomManager)
         }
 
         // 恢复设置
@@ -439,7 +392,7 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
      */
     private fun drawPlayerListSection(canvas: Canvas, w: Int, h: Int, players: List<LobbyPlayer>, isHost: Boolean) {
         val sectionX = w * 0.08f
-        val sectionY = h * 0.22f
+        val sectionY = h * 0.18f
         val sectionWidth = w * 0.84f
         val itemHeight = 70f
         val itemSpacing = 6f
@@ -459,6 +412,51 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
             
             drawPlayerItemCard(canvas, sectionX, y, sectionWidth, itemHeight, player, isHost)
         }
+    }
+
+    private fun drawCompactRoomSummary(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        roomManager: RoomManager,
+        statusText: String,
+        canStart: Boolean
+    ) {
+        val players = roomManager.lobbyPlayers
+        val maxPlayers = roomManager.currentRoomInfo?.maxPlayers ?: 4
+        val panel = RectF(w * 0.08f, h * 0.055f, w * 0.92f, h * 0.145f)
+
+        renderer.paint.style = Paint.Style.FILL
+        renderer.paint.color = Color.argb(120, 12, 18, 32)
+        canvas.drawRoundRect(panel, 12f, 12f, renderer.paint)
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2f
+        renderer.paint.color = if (canStart) Color.parseColor("#4CAF50") else Color.argb(130, 255, 183, 77)
+        canvas.drawRoundRect(panel, 12f, 12f, renderer.paint)
+
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+        renderer.subtitlePaint.textAlign = Paint.Align.LEFT
+        renderer.subtitlePaint.textSize = 28f
+        renderer.subtitlePaint.color = Color.parseColor("#9AA4B5")
+        canvas.drawText("房间号", panel.left + 28f, panel.top + 34f, renderer.subtitlePaint)
+
+        renderer.titlePaint.textAlign = Paint.Align.LEFT
+        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.titlePaint.textSize = 46f
+        renderer.titlePaint.color = Color.parseColor("#FFD700")
+        canvas.drawText(roomManager.roomCode.ifBlank { "----" }, panel.left + 132f, panel.top + 42f, renderer.titlePaint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.RIGHT
+        renderer.subtitlePaint.textSize = 30f
+        renderer.subtitlePaint.color = Color.parseColor("#C4CAD6")
+        canvas.drawText("玩家 ${players.size}/$maxPlayers", panel.right - 28f, panel.top + 38f, renderer.subtitlePaint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.subtitlePaint.textSize = 30f
+        renderer.subtitlePaint.color = if (canStart) Color.parseColor("#76FF8A") else Color.parseColor("#FFCC80")
+        canvas.drawText(statusText, w / 2f, panel.bottom - 18f, renderer.subtitlePaint)
     }
     
     /**
@@ -521,13 +519,13 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     /**
      * 绘制房主的底部按钮（开始游戏）
      */
-    private fun drawHostButtons(canvas: Canvas, w: Int, h: Int, btnY: Float, players: List<LobbyPlayer>) {
-        val allReady = players.all { it.isReady } && players.size >= 2
+    private fun drawHostButtons(canvas: Canvas, w: Int, btnY: Float, players: List<LobbyPlayer>) {
+        val canStart = LobbyRules.canStartGame(players)
         
         renderer.subtitlePaint.textSize = 55f
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
         
-        if (allReady) {
+        if (canStart) {
             // 闪烁效果
             val pulse = (sin(renderer.globalTime * 3f) + 1f) * 0.5f
             val alpha = (120 + pulse * 135).toInt()
@@ -557,14 +555,11 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
             
             canvas.drawText("开始游戏", w / 2f, btnY + 18f, renderer.subtitlePaint)
         } else {
-            renderer.subtitlePaint.color = Color.parseColor("#888888")
-            val hint = if (players.size < 2) "等待玩家加入..." else "等待玩家准备..."
-            canvas.drawText(hint, w / 2f, btnY + 18f, renderer.subtitlePaint)
             startGameBtnRect.set(0f, 0f, 0f, 0f)
         }
         
         // 离开房间按钮
-        val leaveBtnY = btnY + 100f
+        val leaveBtnY = if (canStart) btnY + 100f else btnY
         drawButtonWithGlow(canvas, w / 2f, leaveBtnY, 360f, 70f,
             "离开房间", Color.parseColor("#FF5252"), leaveRoomBtnRect)
     }
@@ -572,8 +567,8 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     /**
      * 绘制客户端的底部按钮（准备）
      */
-    private fun drawClientButtons(canvas: Canvas, w: Int, h: Int, btnY: Float, players: List<LobbyPlayer>) {
-        val myPlayer = players.firstOrNull { !it.isHost }
+    private fun drawClientButtons(canvas: Canvas, w: Int, btnY: Float, roomManager: RoomManager) {
+        val myPlayer = roomManager.lobbyPlayers.firstOrNull { it.playerId == roomManager.localPlayerId }
         val isReady = myPlayer?.isReady == true
         
         val readyColor = if (isReady) Color.parseColor("#4CAF50") else Color.parseColor("#2196F3")

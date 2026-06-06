@@ -50,7 +50,7 @@ data class RoomInfo(
     val roomCode: String = "",    // 4位房间密码
     val hostIp: String,
     val playerCount: Int,
-    val maxPlayers: Int = 2,
+    val maxPlayers: Int = 4,
     val roomName: String
 )
 

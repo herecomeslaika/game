@@ -139,7 +139,7 @@ class Game(private val context: Context) {
         
         // 设置 RoomManager 回调
         roomManager.onGameStart = {
-            gameState = GameState.PLAYING
+            startNewRun()
         }
         
         gameThread = Thread { gameLoop() }

@@ -19,6 +19,8 @@ class RoomManager(private val context: Context) {
         private set
     var roomCode: String = ""
         private set
+    var localPlayerId: Int = 0
+        private set
 
     // 等待房间中的玩家列表
     val lobbyPlayers = mutableListOf<LobbyPlayer>()
@@ -71,12 +73,13 @@ class RoomManager(private val context: Context) {
         roomCode = code
         val localIp = getLocalIpAddress()
         val roomId = UUID.randomUUID().toString().substring(0, 6)
-        val roomInfo = RoomInfo(roomId, code, localIp, 1, 2, roomName)
+        val roomInfo = RoomInfo(roomId, code, localIp, 1, 4, roomName)
         currentRoomInfo = roomInfo
+        localPlayerId = 1
 
         // 初始化房主自己
         lobbyPlayers.clear()
-        lobbyPlayers.add(LobbyPlayer(playerId = 1, name = "房主", isReady = true, isHost = true))
+        lobbyPlayers.add(LobbyRules.createHostPlayer())
 
         server = UdpServer()
         server?.onFrameReceived = { frame, addr ->
@@ -99,18 +102,17 @@ class RoomManager(private val context: Context) {
         when (frame.type) {
             RoomCommand.CommandType.PLAYER_JOIN -> {
                 if (lobbyPlayers.size < currentRoomInfo!!.maxPlayers) {
-                    val playerId = lobbyPlayers.size + 1
-                    lobbyPlayers.add(LobbyPlayer(playerId = playerId, name = "玩家${playerId}", isReady = false, isHost = false))
+                    val playerId = nextPlayerId()
+                    lobbyPlayers.add(LobbyRules.createGuestPlayer(playerId))
                     // 更新房间人数
-                    currentRoomInfo = currentRoomInfo!!.copy(playerCount = lobbyPlayers.size)
+                    currentRoomInfo = LobbyRules.syncPlayerCount(currentRoomInfo!!, lobbyPlayers)
                     // 通知所有客户端房间信息
-                    val infoJson = json.encodeToString(currentRoomInfo!!)
-                    server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.ROOM_INFO, infoJson))
                     // 通知加入者其playerId
                     server?.sendToClient(
                         RoomCommand(RoomCommand.CommandType.PLAYER_JOIN, playerId.toString()),
                         addr
                     )
+                    broadcastLobbyState()
                     onPlayerJoined?.invoke(playerId)
                     onLobbyUpdated?.invoke()
                 }
@@ -121,8 +123,7 @@ class RoomManager(private val context: Context) {
                 if (idx >= 0) {
                     lobbyPlayers[idx] = lobbyPlayers[idx].copy(isReady = true)
                     // 广播更新
-                    val lobbyJson = json.encodeToString(lobbyPlayers)
-                    server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.ROOM_INFO, lobbyJson))
+                    broadcastLobbyState()
                     onLobbyUpdated?.invoke()
                 }
             }
@@ -133,9 +134,10 @@ class RoomManager(private val context: Context) {
             RoomCommand.CommandType.KICK_PLAYER -> {
                 val playerId = frame.data.toIntOrNull() ?: return
                 lobbyPlayers.removeAll { it.playerId == playerId && !it.isHost }
-                currentRoomInfo = currentRoomInfo!!.copy(playerCount = lobbyPlayers.size)
+                currentRoomInfo = LobbyRules.syncPlayerCount(currentRoomInfo!!, lobbyPlayers)
                 // 通知被踢玩家
                 server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.KICK_PLAYER, playerId.toString()))
+                broadcastLobbyState()
                 onLobbyUpdated?.invoke()
             }
             else -> {}
@@ -145,8 +147,7 @@ class RoomManager(private val context: Context) {
     /** 开始游戏（房主调用） */
     fun startGame() {
         if (!isHost) return
-        val allReady = lobbyPlayers.all { it.isReady }
-        if (allReady && lobbyPlayers.size >= 2) {
+        if (LobbyRules.canStartGame(lobbyPlayers)) {
             server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.START_GAME))
             onGameStart?.invoke()
         }
@@ -156,8 +157,9 @@ class RoomManager(private val context: Context) {
     fun kickPlayer(playerId: Int) {
         if (!isHost) return
         lobbyPlayers.removeAll { it.playerId == playerId && !it.isHost }
-        currentRoomInfo = currentRoomInfo!!.copy(playerCount = lobbyPlayers.size)
+        currentRoomInfo = LobbyRules.syncPlayerCount(currentRoomInfo!!, lobbyPlayers)
         server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.KICK_PLAYER, playerId.toString()))
+        broadcastLobbyState()
         onLobbyUpdated?.invoke()
     }
 
@@ -238,6 +240,7 @@ class RoomManager(private val context: Context) {
     /** 加入已发现的房间 */
     fun joinRoom(roomInfo: RoomInfo) {
         isHost = false
+        localPlayerId = 0
         roomCode = roomInfo.roomCode
         currentRoomInfo = roomInfo
         connectToHost(roomInfo.hostIp)
@@ -263,7 +266,12 @@ class RoomManager(private val context: Context) {
         when (frame.type) {
             RoomCommand.CommandType.PLAYER_JOIN -> {
                 val pid = frame.data.toIntOrNull() ?: return
+                localPlayerId = pid
+                if (lobbyPlayers.none { it.playerId == pid }) {
+                    lobbyPlayers.add(LobbyRules.createGuestPlayer(pid))
+                }
                 onPlayerJoined?.invoke(pid)
+                onLobbyUpdated?.invoke()
             }
             RoomCommand.CommandType.ROOM_INFO -> {
                 // 解析房间信息或玩家列表
@@ -292,16 +300,28 @@ class RoomManager(private val context: Context) {
     /** 客户端设置准备 */
     fun setReady() {
         if (isHost) return
-        val myId = lobbyPlayers.firstOrNull { !it.isHost }?.playerId ?: return
+        val myId = localPlayerId.takeIf { it > 0 } ?: return
         client?.sendFrame(RoomCommand(RoomCommand.CommandType.PLAYER_READY, myId.toString()))
         // 本地立即更新
         val idx = lobbyPlayers.indexOfFirst { it.playerId == myId }
         if (idx >= 0) {
             lobbyPlayers[idx] = lobbyPlayers[idx].copy(isReady = true)
         }
+        onLobbyUpdated?.invoke()
     }
 
     /** 主机广播房间信息（供局域网发现） */
+    private fun nextPlayerId(): Int {
+        return ((lobbyPlayers.maxOfOrNull { it.playerId } ?: 0) + 1).coerceAtLeast(2)
+    }
+
+    private fun broadcastLobbyState() {
+        val info = currentRoomInfo ?: return
+        currentRoomInfo = LobbyRules.syncPlayerCount(info, lobbyPlayers)
+        server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.ROOM_INFO, json.encodeToString(currentRoomInfo!!)))
+        server?.broadcastFrame(RoomCommand(RoomCommand.CommandType.ROOM_INFO, json.encodeToString(lobbyPlayers.toList())))
+    }
+
     private fun startRoomBroadcast(roomInfo: RoomInfo) {
         Thread {
             try {
@@ -316,7 +336,7 @@ class RoomManager(private val context: Context) {
                         val msg = String(receivePacket.data.copyOf(receivePacket.length))
                         if (msg == "DISCOVER_ROOM") {
                             // 回复房间信息
-                            val data = json.encodeToString(roomInfo).toByteArray()
+                            val data = json.encodeToString(currentRoomInfo ?: roomInfo).toByteArray()
                             val replyPacket = DatagramPacket(
                                 data, data.size,
                                 receivePacket.address, receivePacket.port
@@ -347,6 +367,7 @@ class RoomManager(private val context: Context) {
         client?.stop()
         currentRoomInfo = null
         roomCode = ""
+        localPlayerId = 0
         lobbyPlayers.clear()
         discoveredRooms.clear()
     }
