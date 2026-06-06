@@ -2,6 +2,7 @@ package com.game.roguelike.core
 
 enum class GameState {
     MENU,
+    INTRO_STORY,
     PLAYING,
     SHOP,
     EVENT,
@@ -11,6 +12,7 @@ enum class GameState {
     PLAYER_DEATH,
     GAME_OVER,
     VICTORY,
+    ENDING_STORY,
     MULTIPLAYER_LOBBY,
     ROOM_LIST,
     ROOM_WAITING,

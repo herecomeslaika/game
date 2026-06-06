@@ -222,15 +222,12 @@ class Player : Entity() {
     private fun updateCooldowns(dt: Float, game: Game) {
         if (specialCooldownTimer > 0) {
             specialCooldownTimer -= dt
-            if (specialCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
         }
         if (dashCooldownTimer > 0) {
             dashCooldownTimer -= dt
-            if (dashCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
         }
         if (supportCooldownTimer > 0) {
             supportCooldownTimer -= dt
-            if (supportCooldownTimer <= 0) game.audioManager.play("cooldown_ready")
         }
         if (invincibleTimer > 0) invincibleTimer -= dt
         if (athenaShieldTimer > 0) {

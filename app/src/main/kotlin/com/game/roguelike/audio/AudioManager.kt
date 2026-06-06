@@ -16,8 +16,11 @@ class AudioManager(context: Context) {
     private var currentBgmResId: Int = 0
 
     var sfxVolume = 1f
+        private set
     var bgmVolume = 0.5f
+        private set
     var muted = false
+        private set
 
     private val soundMap = mutableMapOf<String, Int>()
 
@@ -69,6 +72,24 @@ class AudioManager(context: Context) {
         val soundId = soundMap["crit"] ?: return
         soundPool.play(soundId, sfxVolume, sfxVolume, 0, 0, 1f)
         play("hit")
+    }
+
+    fun setSfxVolume(volume: Float) {
+        sfxVolume = volume.coerceIn(0f, 1f)
+    }
+
+    fun setBgmVolume(volume: Float) {
+        bgmVolume = volume.coerceIn(0f, 1f)
+        applyBgmVolume()
+    }
+
+    fun setMuted(value: Boolean) {
+        muted = value
+        applyBgmVolume()
+    }
+
+    fun toggleMuted() {
+        setMuted(!muted)
     }
 
     fun tryFootstep(dt: Float, isMoving: Boolean) {
@@ -127,6 +148,16 @@ class AudioManager(context: Context) {
         bgmPlayer?.let {
             try {
                 if (!it.isPlaying) it.start()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun applyBgmVolume() {
+        bgmPlayer?.let {
+            try {
+                val volume = if (muted) 0f else bgmVolume
+                it.setVolume(volume, volume)
             } catch (_: Exception) {
             }
         }

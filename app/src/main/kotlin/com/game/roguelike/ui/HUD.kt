@@ -121,15 +121,18 @@ class HUD {
         paint.textSize = 21f
         canvas.drawText("金币: $gold", hudX, hudY + 58f, paint)
 
-        val layerName = when (layerIndex) {
+        paint.color = Color.parseColor("#AABBCC")
+        paint.textSize = 19f
+        canvas.drawText(layerDisplayName(layerIndex), hudX, hudY + 88f, paint)
+    }
+
+    private fun layerDisplayName(layerIndex: Int): String {
+        return when (layerIndex) {
             0 -> "塔耳塔洛斯"
             1 -> "阿斯福德"
             2 -> "伊利西昂"
             else -> "未知"
         }
-        paint.color = Color.parseColor("#AABBCC")
-        paint.textSize = 19f
-        canvas.drawText(layerName, hudX, hudY + 88f, paint)
     }
 
     private fun renderBossBar(canvas: Canvas, boss: Enemy?, phaseText: String, phaseTimer: Float) {

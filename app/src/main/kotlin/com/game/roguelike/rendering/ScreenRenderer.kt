@@ -22,6 +22,13 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     val confirmOkBtnRect = RectF()
     val confirmCancelBtnRect = RectF()
     val optionsBackBtnRect = RectF()
+    val optionsBgmSliderRect = RectF()
+    val optionsSfxSliderRect = RectF()
+    val optionsMuteBtnRect = RectF()
+    val optionsMainBgmBtnRect = RectF()
+    val optionsBattleBgmBtnRect = RectF()
+    val optionsBossBgmBtnRect = RectF()
+    val optionsStopBgmBtnRect = RectF()
     
     // 联机大厅按钮区域
     val createRoomBtnRect = RectF()
@@ -598,7 +605,7 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         drawButtonWithGlow(canvas, w / 2f, leaveBtnY, 360f, 70f,
             "离开房间", Color.parseColor("#FF5252"), leaveRoomBtnRect)
     }
-    fun renderOptions(canvas: Canvas, w: Int, h: Int) {
+    fun renderOptions(canvas: Canvas, w: Int, h: Int, bgmVolume: Float, sfxVolume: Float, muted: Boolean) {
         val panel = RectF(w * 0.18f, h * 0.18f, w * 0.82f, h * 0.82f)
         renderer.paint.color = Color.argb(210, 10, 16, 28)
         renderer.paint.style = Paint.Style.FILL
@@ -614,15 +621,47 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         renderer.titlePaint.textSize = 72f
         canvas.drawText("选项", panel.centerX(), panel.top + 80f, renderer.titlePaint)
 
+        val left = panel.left + 60f
+        val sliderLeft = left + 220f
+        val sliderRight = panel.right - 80f
+
+        renderVolumeRow(
+            canvas = canvas,
+            label = "背景音乐",
+            value = bgmVolume,
+            y = panel.top + 180f,
+            labelX = left,
+            sliderLeft = sliderLeft,
+            sliderRight = sliderRight,
+            rect = optionsBgmSliderRect,
+            color = Color.parseColor("#60A5FA")
+        )
+        renderVolumeRow(
+            canvas = canvas,
+            label = "游戏音效",
+            value = sfxVolume,
+            y = panel.top + 270f,
+            labelX = left,
+            sliderLeft = sliderLeft,
+            sliderRight = sliderRight,
+            rect = optionsSfxSliderRect,
+            color = Color.parseColor("#34D399")
+        )
+
         renderer.subtitlePaint.textAlign = Paint.Align.LEFT
         renderer.subtitlePaint.color = Color.parseColor("#D1D5DB")
-        renderer.subtitlePaint.textSize = 36f
-        val left = panel.left + 60f
-        canvas.drawText("音量：100%", left, panel.top + 170f, renderer.subtitlePaint)
-        canvas.drawText("震动：开启", left, panel.top + 240f, renderer.subtitlePaint)
-        canvas.drawText("画质：标准", left, panel.top + 310f, renderer.subtitlePaint)
-        canvas.drawText("联机：局域网", left, panel.top + 380f, renderer.subtitlePaint)
-        canvas.drawText("提示：后续可以继续扩展这里", left, panel.top + 470f, renderer.subtitlePaint)
+        renderer.subtitlePaint.textSize = 30f
+        canvas.drawText("背景音乐试听", left, panel.top + 365f, renderer.subtitlePaint)
+
+        val btnY = panel.top + 430f
+        drawButtonWithGlow(canvas, left + 95f, btnY, 170f, 64f, "Main", Color.parseColor("#8B5CF6"), optionsMainBgmBtnRect)
+        drawButtonWithGlow(canvas, left + 285f, btnY, 170f, 64f, "Battle", Color.parseColor("#2563EB"), optionsBattleBgmBtnRect)
+        drawButtonWithGlow(canvas, left + 475f, btnY, 170f, 64f, "Boss", Color.parseColor("#DC2626"), optionsBossBgmBtnRect)
+        drawButtonWithGlow(canvas, left + 665f, btnY, 170f, 64f, "停止", Color.parseColor("#6B7280"), optionsStopBgmBtnRect)
+
+        val muteText = if (muted) "取消静音" else "一键静音"
+        val muteColor = if (muted) Color.parseColor("#F59E0B") else Color.parseColor("#8B5CF6")
+        drawButtonWithGlow(canvas, panel.centerX(), panel.top + 525f, 260f, 68f, muteText, muteColor, optionsMuteBtnRect)
 
         val backCx = panel.centerX()
         val backCy = panel.bottom - 70f
@@ -630,6 +669,62 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         val backHeight = 72f
         optionsBackBtnRect.set(backCx - backWidth / 2, backCy - backHeight / 2, backCx + backWidth / 2, backCy + backHeight / 2)
         drawButtonWithGlow(canvas, backCx, backCy, backWidth, backHeight, "返回", Color.parseColor("#6B7280"), optionsBackBtnRect)
+    }
+
+    private fun renderVolumeRow(
+        canvas: Canvas,
+        label: String,
+        value: Float,
+        y: Float,
+        labelX: Float,
+        sliderLeft: Float,
+        sliderRight: Float,
+        rect: RectF,
+        color: Int
+    ) {
+        val clamped = value.coerceIn(0f, 1f)
+        val sliderHeight = 18f
+        val hitHeight = 64f
+        rect.set(sliderLeft, y - hitHeight / 2f, sliderRight, y + hitHeight / 2f)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.LEFT
+        renderer.subtitlePaint.color = Color.parseColor("#E5E7EB")
+        renderer.subtitlePaint.textSize = 32f
+        canvas.drawText(label, labelX, y + 11f, renderer.subtitlePaint)
+
+        renderer.paint.style = Paint.Style.FILL
+        renderer.paint.color = Color.argb(160, 31, 41, 55)
+        canvas.drawRoundRect(
+            sliderLeft,
+            y - sliderHeight / 2f,
+            sliderRight,
+            y + sliderHeight / 2f,
+            9f,
+            9f,
+            renderer.paint
+        )
+
+        val fillRight = sliderLeft + (sliderRight - sliderLeft) * clamped
+        renderer.paint.color = color
+        canvas.drawRoundRect(
+            sliderLeft,
+            y - sliderHeight / 2f,
+            fillRight,
+            y + sliderHeight / 2f,
+            9f,
+            9f,
+            renderer.paint
+        )
+
+        renderer.paint.color = Color.WHITE
+        canvas.drawCircle(fillRight, y, 18f, renderer.paint)
+        renderer.paint.color = color
+        canvas.drawCircle(fillRight, y, 10f, renderer.paint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.RIGHT
+        renderer.subtitlePaint.color = Color.parseColor("#D1D5DB")
+        renderer.subtitlePaint.textSize = 28f
+        canvas.drawText("${(clamped * 100).toInt()}%", sliderRight, y - 26f, renderer.subtitlePaint)
     }
 
     fun renderExitConfirm(canvas: Canvas, w: Int, h: Int, fromPlaying: Boolean) {
@@ -718,6 +813,118 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         renderer.subtitlePaint.color = Color.parseColor("#DDDD88")
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
         canvas.drawText("点击任意位置返回主菜单", w / 2f, h * 0.6f, renderer.subtitlePaint)
+    }
+
+    fun renderIntroStory(canvas: Canvas, w: Int, h: Int) {
+        drawStoryBackdrop(canvas, w, h, Color.rgb(9, 8, 18), Color.rgb(38, 16, 44))
+        drawStoryFrame(canvas, w, h)
+        drawStoryTitle(canvas, w, h, "被夺走的黎明", Color.parseColor("#F7D56B"))
+
+        val lines = listOf(
+            "王国最后一束星火在冥界之门前熄灭。",
+            "公主艾莉娅被三位守门者带入深渊，塔耳塔洛斯的骨墙、阿斯福德的烈焰、伊利西昂的冠军挡住了归途。",
+            "你是王国最后的骑士。穿过三层冥途，击败守门者，把她带回黎明。"
+        )
+        drawStoryText(canvas, w, h, lines, h * 0.36f)
+        drawStoryHint(canvas, w, h, "点击任意位置跳过")
+    }
+
+    fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
+        drawStoryBackdrop(canvas, w, h, Color.rgb(8, 18, 14), Color.rgb(36, 45, 24))
+        drawStoryFrame(canvas, w, h)
+        drawStoryTitle(canvas, w, h, "黎明归来", Color.parseColor("#FFE68A"))
+
+        val lines = listOf(
+            "冥界王座崩塌，三位守门者的誓约化作尘光。",
+            "你在破晓前找到了公主，长夜的诅咒从她身上褪去，王国的钟声越过山谷。",
+            "骑士归来，黎明得救。"
+        )
+        drawStoryText(canvas, w, h, lines, h * 0.36f)
+        drawStoryHint(canvas, w, h, "点击任意位置继续")
+    }
+
+    private fun drawStoryBackdrop(canvas: Canvas, w: Int, h: Int, topColor: Int, bottomColor: Int) {
+        renderer.resetPaint()
+        if (renderer.enableShaders) {
+            renderer.paint.shader = renderer.makeLinearGradient(0f, 0f, 0f, h.toFloat(), topColor, bottomColor)
+        } else {
+            renderer.paint.color = bottomColor
+        }
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
+        renderer.paint.shader = null
+
+        drawGridBackground(canvas, w, h)
+        renderer.paint.color = Color.argb(120, 0, 0, 0)
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
+    }
+
+    private fun drawStoryFrame(canvas: Canvas, w: Int, h: Int) {
+        val panel = RectF(w * 0.16f, h * 0.18f, w * 0.84f, h * 0.82f)
+        renderer.paint.color = Color.argb(170, 9, 10, 20)
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(panel, 18f, 18f, renderer.paint)
+
+        renderer.paint.color = Color.argb(150, 245, 214, 135)
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 2.5f
+        canvas.drawRoundRect(panel, 18f, 18f, renderer.paint)
+    }
+
+    private fun drawStoryTitle(canvas: Canvas, w: Int, h: Int, title: String, color: Int) {
+        renderer.titlePaint.textAlign = Paint.Align.CENTER
+        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.titlePaint.textSize = (h * 0.085f).coerceIn(64f, 104f)
+        renderer.titlePaint.color = color
+        renderer.titlePaint.setShadowLayer(10f, 0f, 4f, Color.BLACK)
+        canvas.drawText(title, w / 2f, h * 0.30f, renderer.titlePaint)
+        renderer.titlePaint.clearShadowLayer()
+    }
+
+    private fun drawStoryText(canvas: Canvas, w: Int, h: Int, lines: List<String>, startY: Float) {
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+        renderer.subtitlePaint.textSize = (h * 0.035f).coerceIn(30f, 46f)
+        renderer.subtitlePaint.color = Color.parseColor("#E7DCC7")
+
+        var y = startY
+        val maxWidth = w * 0.58f
+        val lineGap = renderer.subtitlePaint.textSize * 1.45f
+        for (paragraph in lines) {
+            val wrapped = wrapText(paragraph, maxWidth, renderer.subtitlePaint)
+            for (line in wrapped) {
+                canvas.drawText(line, w / 2f, y, renderer.subtitlePaint)
+                y += lineGap
+            }
+            y += lineGap * 0.35f
+        }
+    }
+
+    private fun drawStoryHint(canvas: Canvas, w: Int, h: Int, hint: String) {
+        val alpha = ((sin(renderer.globalTime * 2f) + 1f) * 70f + 110f).toInt()
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.subtitlePaint.textSize = (h * 0.032f).coerceIn(30f, 42f)
+        renderer.subtitlePaint.color = Color.argb(alpha, 255, 229, 165)
+        canvas.drawText(hint, w / 2f, h * 0.74f, renderer.subtitlePaint)
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+    }
+
+    private fun wrapText(text: String, maxWidth: Float, paint: Paint): List<String> {
+        val result = mutableListOf<String>()
+        var current = ""
+        for (char in text) {
+            val next = current + char
+            if (current.isNotEmpty() && paint.measureText(next) > maxWidth) {
+                result.add(current)
+                current = char.toString()
+            } else {
+                current = next
+            }
+        }
+        if (current.isNotEmpty()) result.add(current)
+        return result
     }
 
     fun drawFade(canvas: Canvas, alpha: Float) {

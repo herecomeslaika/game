@@ -17,6 +17,8 @@ class TileRenderer(private val renderer: IsometricRenderer) {
 
         val theme = renderer.layerColors[room.layerIndex.coerceIn(0, 2)]
 
+        renderer.renderEnvironment(canvas, room)
+
         // Collect light sources from special tiles
         renderer.lightSources.clear()
         for (row in 0 until room.height) {

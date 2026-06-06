@@ -70,12 +70,14 @@ class Game(private val context: Context) {
     var shakeDuration = 0f
     var transitionAlpha = 0f
     var transitionTarget: GameState? = null
+    private val layerTransitionState = LayerTransitionState()
     var spikeDamageTimer = 0f
     var frostFieldTimer = 0f
     var currentEvent: GameEvent? = null
     var selectedEventOption: Int = -1
     var eventResultText: String? = null
     var eventResultTimer = 0f
+    var storyTimer = 0f
     var roomTransitionCooldown = 0f
     var gameOverFadeAlpha = 0f
     private var pendingReturnState: GameState = GameState.MENU
@@ -129,6 +131,9 @@ class Game(private val context: Context) {
         if (!soundsLoaded) {
             audioManager.loadSounds(context)
             soundsLoaded = true
+        }
+        if (gameState == GameState.MENU) {
+            audioManager.playBgm(context, R.raw.bgm_main)
         }
         
         // 设置 RoomManager 回调
@@ -189,6 +194,7 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
+            GameState.INTRO_STORY, GameState.ENDING_STORY -> updateStory(dt)
             GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
             GameState.ROOM_LIST -> updateRoomList(dt)
             GameState.ROOM_WAITING -> updateRoomWaiting(dt)
@@ -210,7 +216,12 @@ class Game(private val context: Context) {
     }
 
     private fun updateMenu(dt: Float) {
-        // Waiting for tap input via handleTouch
+        audioManager.playBgm(context, R.raw.bgm_main)
+    }
+
+    private fun updateStory(dt: Float) {
+        storyTimer += dt
+        audioManager.playBgm(context, R.raw.bgm_main)
     }
 
     private fun updateMultiplayerLobby(dt: Float) {
@@ -433,31 +444,31 @@ class Game(private val context: Context) {
         bossEntranceTimer += dt
 
         when (bossEntrancePhase) {
-            0 -> {
-                // Phase 0 (0-1.5s): slow-motion + screen shake + short vibration
-                shake(6f, 1.5f)
+            BossEntranceTimeline.CINEMATIC_PHASE -> {
+                // Phase 0: boss-specific cinematic before title reveal
+                shake(if (currentLayerIndex == 2) 9f else 5f, BossEntranceTimeline.CINEMATIC_DURATION)
                 if (bossEntranceTimer < 0.05f) {
-                    vibrate(100)
+                    vibrate(if (currentLayerIndex == 2) 180 else 100)
                 }
-                if (bossEntranceTimer >= 1.5f) {
-                    bossEntrancePhase = 1
+                if (bossEntranceTimer >= BossEntranceTimeline.CINEMATIC_DURATION) {
+                    bossEntrancePhase = BossEntranceTimeline.TITLE_PHASE
                     bossEntranceTimer = 0f
                     timeScale = 1f
                     shake(10f, 2f)
                     vibrate(300)
                 }
             }
-            1 -> {
-                // Phase 1 (1.5-3.5s): boss name display + heavy shake
-                if (bossEntranceTimer >= 2f) {
-                    bossEntrancePhase = 2
+            BossEntranceTimeline.TITLE_PHASE -> {
+                // Phase 1: boss name display + heavy shake
+                if (bossEntranceTimer >= BossEntranceTimeline.TITLE_DURATION) {
+                    bossEntrancePhase = BossEntranceTimeline.FADE_PHASE
                     bossEntranceTimer = 0f
                     vibrate(50)
                 }
             }
-            2 -> {
-                // Phase 2 (3.5-4.0s): fade out, restore, spawn boss
-                if (bossEntranceTimer >= 0.5f) {
+            BossEntranceTimeline.FADE_PHASE -> {
+                // Phase 2: fade out, restore, spawn boss
+                if (BossEntranceTimeline.shouldSpawnBoss(bossEntrancePhase, bossEntranceTimer)) {
                     val room = currentRoom ?: return
                     room.spawnBoss(this)
                     pendingBossType = null
@@ -473,9 +484,18 @@ class Game(private val context: Context) {
             transitionAlpha += dt * 2f
             if (transitionAlpha >= 1f) {
                 transitionAlpha = 1f
-                currentLayerIndex++
+                val targetLayerIndex = layerTransitionState.consumeTargetLayerIndex()
+                if (targetLayerIndex == null) {
+                    transitionAlpha = 0f
+                    transitionTarget = null
+                    gameState = GameState.PLAYING
+                    return
+                }
+                currentLayerIndex = targetLayerIndex
                 if (currentLayerIndex >= 3) {
-                    gameState = GameState.VICTORY
+                    storyTimer = 0f
+                    audioManager.playBgm(context, R.raw.bgm_main)
+                    gameState = GameState.ENDING_STORY
                     return
                 }
                 currentLayer = Layer(currentLayerIndex)
@@ -622,7 +642,7 @@ class Game(private val context: Context) {
                 bossEntranceName = bossType.bossName
                 bossEntranceTitle = bossType.bossTitle
                 bossEntranceTimer = 0f
-                bossEntrancePhase = 0
+                bossEntrancePhase = BossEntranceTimeline.initialPhase
                 timeScale = 0.2f
                 gameState = GameState.BOSS_ENTRANCE
             }
@@ -644,12 +664,14 @@ class Game(private val context: Context) {
     }
 
     fun goToNextRoom() {
+        if (gameState == GameState.LAYER_TRANSITION) return
         val layer = currentLayer ?: return
         val connected = layer.getConnectedRooms()
 
         if (connected.isEmpty()) {
             // No more rooms — boss cleared, transition to next layer
             if (layer.isBossRoom() && currentRoom?.cleared == true) {
+                if (!layerTransitionState.beginFrom(currentLayerIndex)) return
                 gameState = GameState.LAYER_TRANSITION
                 transitionAlpha = 0f
                 transitionTarget = null
@@ -688,10 +710,35 @@ class Game(private val context: Context) {
         loadRoom(currentRoom!!)
         timeScale = 1f
         bossEntranceTimer = 0f
-        bossEntrancePhase = 0
+        bossEntrancePhase = BossEntranceTimeline.initialPhase
         pendingBossType = null
+        layerTransitionState.reset()
         gameState = GameState.PLAYING
         audioManager.playBgm(context, R.raw.bgm_battle)
+    }
+
+    fun startIntroStory() {
+        storyTimer = 0f
+        gameState = GameState.INTRO_STORY
+        audioManager.playBgm(context, R.raw.bgm_main)
+    }
+
+    fun skipIntroStory() {
+        startNewRun()
+    }
+
+    fun skipEndingStory() {
+        storyTimer = 0f
+        gameState = GameState.VICTORY
+        audioManager.playBgm(context, R.raw.bgm_main)
+    }
+
+    private fun enterMainMenu() {
+        gameState = GameState.MENU
+        storyTimer = 0f
+        inputManager?.reset()
+        hud.closeBlessingPanel()
+        audioManager.playBgm(context, R.raw.bgm_main)
     }
 
     fun selectBlessing(blessing: Blessing) {
@@ -729,13 +776,21 @@ class Game(private val context: Context) {
 
             when (gameState) {
                 GameState.MENU -> renderMenu(canvas)
+                GameState.INTRO_STORY -> renderIntroStory(canvas)
                 GameState.MULTIPLAYER_LOBBY -> renderMultiplayerLobby(canvas)
                 GameState.ROOM_LIST -> renderRoomList(canvas)
                 GameState.ROOM_WAITING -> renderRoomWaiting(canvas)
                 GameState.PLAYING -> renderPlaying(canvas)
                 GameState.BOSS_ENTRANCE -> {
                     renderPlaying(canvas)
-                    renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                    if (bossEntrancePhase == BossEntranceTimeline.CINEMATIC_PHASE) {
+                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                        currentRoom?.let {
+                            renderer.renderBossEntranceCinematic(canvas, it, currentLayerIndex, bossEntranceTimer)
+                        }
+                    } else {
+                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                    }
                 }
                 GameState.BLESSING_SELECT -> {
                     renderPlaying(canvas)
@@ -751,7 +806,14 @@ class Game(private val context: Context) {
                 }
                 GameState.OPTIONS -> {
                     renderMenu(canvas)
-                    screenRenderer.renderOptions(canvas, screenWidth, screenHeight)
+                    screenRenderer.renderOptions(
+                        canvas = canvas,
+                        w = screenWidth,
+                        h = screenHeight,
+                        bgmVolume = audioManager.bgmVolume,
+                        sfxVolume = audioManager.sfxVolume,
+                        muted = audioManager.muted
+                    )
                 }
                 GameState.EXIT_CONFIRM -> {
                     if (pendingReturnState == GameState.PLAYING) {
@@ -767,6 +829,7 @@ class Game(private val context: Context) {
                 }
                 GameState.GAME_OVER -> renderGameOver(canvas)
                 GameState.VICTORY -> renderVictory(canvas)
+                GameState.ENDING_STORY -> renderEndingStory(canvas)
                 GameState.PLAYER_DEATH -> {
                     renderPlaying(canvas)
                     renderer.drawFade(canvas, gameOverFadeAlpha)
@@ -780,6 +843,14 @@ class Game(private val context: Context) {
 
     private fun renderMenu(canvas: android.graphics.Canvas) {
         renderer.renderMenu(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderIntroStory(canvas: android.graphics.Canvas) {
+        renderer.renderIntroStory(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderEndingStory(canvas: android.graphics.Canvas) {
+        renderer.renderEndingStory(canvas, screenWidth, screenHeight)
     }
 
     private fun renderMultiplayerLobby(canvas: android.graphics.Canvas) {
@@ -806,7 +877,12 @@ class Game(private val context: Context) {
         }
 
         // Render room
-        renderer.renderRoom(canvas, room, player.position, TICK)
+        val cameraFocus = if (gameState == GameState.BOSS_ENTRANCE) {
+            Vector2(room.width * 32f, room.height * 16f)
+        } else {
+            player.position
+        }
+        renderer.renderRoom(canvas, room, cameraFocus, TICK)
 
         // Boss skill warnings
         for (warning in bossWarnings) {
@@ -984,7 +1060,6 @@ class Game(private val context: Context) {
     }
 
         fun handleTouch(x: Float, y: Float) {
-        audioManager.play("ui_click")
         when (gameState) {
             GameState.PLAYING -> {
                 if (hud.handleBlessingPanelClick(x, y)) return
@@ -996,7 +1071,7 @@ class Game(private val context: Context) {
             }
             GameState.MENU -> {
                 when {
-                    screenRenderer.startBtnRect.contains(x, y) -> startNewRun()
+                    screenRenderer.startBtnRect.contains(x, y) -> startIntroStory()
                     screenRenderer.multiplayerBtnRect.contains(x, y) -> gameState = GameState.MULTIPLAYER_LOBBY
                     screenRenderer.optionsBtnRect.contains(x, y) -> {
                         pendingReturnState = GameState.MENU
@@ -1009,8 +1084,33 @@ class Game(private val context: Context) {
                 }
             }
             GameState.OPTIONS -> {
-                if (screenRenderer.optionsBackBtnRect.contains(x, y)) {
-                    gameState = pendingReturnState
+                when {
+                    screenRenderer.optionsBgmSliderRect.contains(x, y) -> {
+                        val volume = sliderValue(x, screenRenderer.optionsBgmSliderRect)
+                        audioManager.setBgmVolume(volume)
+                    }
+                    screenRenderer.optionsSfxSliderRect.contains(x, y) -> {
+                        val volume = sliderValue(x, screenRenderer.optionsSfxSliderRect)
+                        audioManager.setSfxVolume(volume)
+                    }
+                    screenRenderer.optionsMainBgmBtnRect.contains(x, y) -> {
+                        audioManager.playBgm(context, R.raw.bgm_main)
+                    }
+                    screenRenderer.optionsBattleBgmBtnRect.contains(x, y) -> {
+                        audioManager.playBgm(context, R.raw.bgm_battle)
+                    }
+                    screenRenderer.optionsBossBgmBtnRect.contains(x, y) -> {
+                        audioManager.playBgm(context, R.raw.bgm_boss)
+                    }
+                    screenRenderer.optionsStopBgmBtnRect.contains(x, y) -> {
+                        audioManager.stopBgm()
+                    }
+                    screenRenderer.optionsMuteBtnRect.contains(x, y) -> {
+                        audioManager.toggleMuted()
+                    }
+                    screenRenderer.optionsBackBtnRect.contains(x, y) -> {
+                        gameState = pendingReturnState
+                    }
                 }
             }
             GameState.EXIT_CONFIRM -> {
@@ -1018,9 +1118,7 @@ class Game(private val context: Context) {
                     screenRenderer.confirmCancelBtnRect.contains(x, y) -> gameState = pendingReturnState
                     screenRenderer.confirmOkBtnRect.contains(x, y) -> {
                         if (pendingReturnState == GameState.PLAYING) {
-                            gameState = GameState.MENU
-                            inputManager?.reset()
-                            hud.closeBlessingPanel()
+                            enterMainMenu()
                         } else {
                             val activity = context as android.app.Activity
                             activity.finishAndRemoveTask()
@@ -1036,8 +1134,7 @@ class Game(private val context: Context) {
                     roomManager.scanRooms()
                     gameState = GameState.ROOM_LIST
                 } else if (screenRenderer.backToMenuBtnRect.contains(x, y)) {
-                    gameState = GameState.MENU
-                    inputManager?.reset()
+                    enterMainMenu()
                 }
             }
             GameState.ROOM_LIST -> {
@@ -1066,6 +1163,8 @@ class Game(private val context: Context) {
                     gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
+            GameState.INTRO_STORY -> skipIntroStory()
+            GameState.ENDING_STORY -> skipEndingStory()
             GameState.BLESSING_SELECT -> {
                 if (blessingSelector.currentOffering.isEmpty()) {
                     gameState = GameState.PLAYING
@@ -1097,14 +1196,18 @@ class Game(private val context: Context) {
                 }
             }
             GameState.GAME_OVER, GameState.VICTORY -> {
-                gameState = GameState.MENU
-                audioManager.stopBgm()
-                inputManager?.reset()
+                enterMainMenu()
             }
             GameState.EVENT -> handleTouchEvent(x, y)
             else -> {}
         }
     }
+
+    private fun sliderValue(x: Float, rect: android.graphics.RectF): Float {
+        val width = (rect.right - rect.left).coerceAtLeast(1f)
+        return ((x - rect.left) / width).coerceIn(0f, 1f)
+    }
+
     private fun handleTouchEvent(x: Float, y: Float) {
         // If showing result, any tap dismisses
         if (eventResultText != null) {

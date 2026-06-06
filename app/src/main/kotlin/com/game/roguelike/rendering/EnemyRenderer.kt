@@ -51,6 +51,9 @@ class EnemyRenderer(private val renderer: IsometricRenderer) {
         if (!enemy.facingRight) {
             canvas.scale(-1f, 1f, sx, sy)
         }
+        if (enemy.isBoss) {
+            canvas.scale(1.5f, 1.5f, sx, sy)
+        }
 
         val isMoving = enemy.stateMachine.currentState == EnemyState.CHASE || enemy.stateMachine.currentState == EnemyState.PATROL
         val isIdle = enemy.stateMachine.currentState == EnemyState.IDLE

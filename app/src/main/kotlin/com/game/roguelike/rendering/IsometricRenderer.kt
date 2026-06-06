@@ -102,6 +102,8 @@ class IsometricRenderer(val context: Context) {
     )
 
     // Sub-renderers
+    private val environmentRenderer = EnvironmentRenderer(this)
+    private val bossEntranceCinematicRenderer = BossEntranceCinematicRenderer(this)
     private val tileRenderer = TileRenderer(this)
     private val playerRenderer = PlayerRenderer(this, context)
     private val enemyRenderer = EnemyRenderer(this)
@@ -145,6 +147,14 @@ class IsometricRenderer(val context: Context) {
         tileRenderer.renderRoom(canvas, room, playerPos, dt)
     }
 
+    fun renderEnvironment(canvas: Canvas, room: Room) {
+        environmentRenderer.render(canvas, room)
+    }
+
+    fun renderBossEntranceCinematic(canvas: Canvas, room: Room, layerIndex: Int, timer: Float) {
+        bossEntranceCinematicRenderer.render(canvas, room, layerIndex, timer)
+    }
+
     fun renderShadow(canvas: Canvas, entity: Entity) {
         val (sx, sy) = worldToScreen(entity.position)
         val shadowW = entity.width * 0.8f
@@ -186,6 +196,14 @@ class IsometricRenderer(val context: Context) {
 
     fun renderMenu(canvas: Canvas, w: Int, h: Int) {
         screenRenderer.renderMenu(canvas, w, h)
+    }
+
+    fun renderIntroStory(canvas: Canvas, w: Int, h: Int) {
+        screenRenderer.renderIntroStory(canvas, w, h)
+    }
+
+    fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
+        screenRenderer.renderEndingStory(canvas, w, h)
     }
 
     fun renderMultiplayerLobby(canvas: Canvas, w: Int, h: Int) {
