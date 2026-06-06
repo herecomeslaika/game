@@ -10,6 +10,10 @@ import com.game.roguelike.core.color
 import com.game.roguelike.core.icon
 
 class BlessingSelectUI {
+    private companion object {
+        const val SIZE_SCALE = 0.8f
+    }
+
     private var w = 1920f
     private var h = 1080f
     private var itemHeight = 136f
@@ -37,13 +41,13 @@ class BlessingSelectUI {
     fun updateLayout(screenW: Int, screenH: Int) {
         w = screenW.toFloat()
         h = screenH.toFloat()
-        panelTop = h * 0.07f
-        panelBottom = h * 0.93f
-        itemWidth = (w * 0.62f).coerceIn(760f, 1180f)
-        itemHeight = (h * 0.13f).coerceIn(118f, 168f)
-        itemGap = (h * 0.024f).coerceIn(18f, 30f)
+        panelTop = h * 0.156f
+        panelBottom = h * 0.844f
+        itemWidth = (w * 0.62f * SIZE_SCALE).coerceIn(608f, 944f)
+        itemHeight = (h * 0.13f * SIZE_SCALE).coerceIn(94f, 134f)
+        itemGap = (h * 0.024f * SIZE_SCALE).coerceIn(14f, 24f)
         listX = w / 2f - itemWidth / 2f
-        listY = panelTop + h * 0.16f
+        listY = panelTop + h * 0.128f
     }
 
     fun update(dt: Float) {}
@@ -53,19 +57,21 @@ class BlessingSelectUI {
         paint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, w, h, paint)
 
-        val panelLeft = listX - 44f
-        val panelRight = listX + itemWidth + 44f
+        val panelPadding = 44f * SIZE_SCALE
+        val panelRadius = 16f * SIZE_SCALE
+        val panelLeft = listX - panelPadding
+        val panelRight = listX + itemWidth + panelPadding
 
         paint.color = Color.argb(235, 20, 25, 45)
         paint.style = Paint.Style.FILL
-        canvas.drawRoundRect(panelLeft, panelTop, panelRight, panelBottom, 16f, 16f, paint)
+        canvas.drawRoundRect(panelLeft, panelTop, panelRight, panelBottom, panelRadius, panelRadius, paint)
 
         paint.color = Color.parseColor("#5544AA")
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 5f
-        canvas.drawRoundRect(panelLeft, panelTop, panelRight, panelBottom, 16f, 16f, paint)
+        paint.strokeWidth = 5f * SIZE_SCALE
+        canvas.drawRoundRect(panelLeft, panelTop, panelRight, panelBottom, panelRadius, panelRadius, paint)
 
-        titlePaint.textSize = (h * 0.06f).coerceIn(54f, 78f)
+        titlePaint.textSize = (h * 0.06f * SIZE_SCALE).coerceIn(43f, 62f)
         canvas.drawText("选择祝福", w / 2f, panelTop + h * 0.09f, titlePaint)
 
         for (i in blessings.indices) {
@@ -84,14 +90,14 @@ class BlessingSelectUI {
 
         paint.style = Paint.Style.FILL
         paint.color = Color.argb(160, 40, 35, 60)
-        canvas.drawRoundRect(listX, iy, listX + itemWidth, iy + itemHeight, 12f, 12f, paint)
+        canvas.drawRoundRect(listX, iy, listX + itemWidth, iy + itemHeight, 10f, 10f, paint)
 
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3f
+        paint.strokeWidth = 3f * SIZE_SCALE
         paint.color = rarityColor
-        canvas.drawRoundRect(listX, iy, listX + itemWidth, iy + itemHeight, 12f, 12f, paint)
+        canvas.drawRoundRect(listX, iy, listX + itemWidth, iy + itemHeight, 10f, 10f, paint)
 
-        val iconX = listX + 58f
+        val iconX = listX + 58f * SIZE_SCALE
         val iconY = iy + itemHeight / 2f
         paint.style = Paint.Style.FILL
         paint.color = blessing.god.color
@@ -105,15 +111,16 @@ class BlessingSelectUI {
         namePaint.textAlign = Paint.Align.LEFT
         namePaint.color = rarityColor
         namePaint.textSize = itemHeight * 0.25f
-        canvas.drawText(blessing.name, listX + 118f, iy + itemHeight * 0.40f, namePaint)
+        val textX = listX + 118f * SIZE_SCALE
+        canvas.drawText(blessing.name, textX, iy + itemHeight * 0.40f, namePaint)
 
         descPaint.color = Color.parseColor("#AAAAAA")
         descPaint.textSize = itemHeight * 0.17f
-        canvas.drawText(blessing.description, listX + 118f, iy + itemHeight * 0.66f, descPaint)
+        canvas.drawText(blessing.description, textX, iy + itemHeight * 0.66f, descPaint)
 
         if (blessing.rarity == BlessingRarity.DUO) {
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 3f
+            paint.strokeWidth = 3f * SIZE_SCALE
             paint.color = Color.parseColor("#FFD700")
             canvas.drawCircle(iconX, iconY, itemHeight * 0.34f, paint)
         }

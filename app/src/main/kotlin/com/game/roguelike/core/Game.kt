@@ -88,6 +88,7 @@ class Game(private val context: Context) {
     var bossEntranceName = ""
     var bossEntranceTitle = ""
     var pendingBossType: EnemyType? = null
+    private var bossFightStarted = false
     var bossPhaseText = ""
     var bossPhaseTextTimer = 0f
     var timeScale = 1f
@@ -369,11 +370,14 @@ class Game(private val context: Context) {
         }
 
         // Check room clear
-        if ((room.type == RoomType.COMBAT || room.type == RoomType.ELITE || room.type == RoomType.BOSS) && !room.cleared) {
+        val canGrantRoomClearReward = room.type == RoomType.COMBAT ||
+            room.type == RoomType.ELITE ||
+            (room.type == RoomType.BOSS && bossFightStarted)
+        if (canGrantRoomClearReward && !room.cleared) {
             if (enemies.isEmpty()) {
                 room.cleared = true
                 room.unlockDoors()
-                // Every combat room grants blessing selection
+                // Combat and boss victories grant blessing selection after the fight is truly over.
                 gameState = GameState.BLESSING_SELECT
                 blessingSelector.generateOffering(currentLayerIndex, blessings)
             }
@@ -471,6 +475,7 @@ class Game(private val context: Context) {
                 if (BossEntranceTimeline.shouldSpawnBoss(bossEntrancePhase, bossEntranceTimer)) {
                     val room = currentRoom ?: return
                     room.spawnBoss(this)
+                    bossFightStarted = true
                     pendingBossType = null
                     timeScale = 1f
                     gameState = GameState.PLAYING
@@ -640,6 +645,7 @@ class Game(private val context: Context) {
             RoomType.BOSS -> {
                 val bossConfig = com.game.roguelike.entity.EnemyConfig.bossForLayer(currentLayerIndex)
                 val bossType = bossConfig?.type ?: EnemyType.MEGA_SKELETON
+                bossFightStarted = false
                 pendingBossType = bossType
                 bossEntranceName = bossType.bossName
                 bossEntranceTitle = bossType.bossTitle
@@ -714,6 +720,7 @@ class Game(private val context: Context) {
         bossEntranceTimer = 0f
         bossEntrancePhase = BossEntranceTimeline.initialPhase
         pendingBossType = null
+        bossFightStarted = false
         layerTransitionState.reset()
         gameState = GameState.PLAYING
         audioManager.playBgm(context, R.raw.bgm_battle)
