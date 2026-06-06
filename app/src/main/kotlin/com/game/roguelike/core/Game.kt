@@ -194,7 +194,7 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
-            GameState.INTRO_STORY, GameState.ENDING_STORY -> updateStory(dt)
+            GameState.INTRO_STORY, GameState.ENDING_STORY, GameState.FAILURE_STORY -> updateStory(dt)
             GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
             GameState.ROOM_LIST -> updateRoomList(dt)
             GameState.ROOM_WAITING -> updateRoomWaiting(dt)
@@ -521,7 +521,9 @@ class Game(private val context: Context) {
             gameOverFadeAlpha += dt * 1.5f
             if (gameOverFadeAlpha >= 1f) {
                 gameOverFadeAlpha = 1f
-                gameState = GameState.GAME_OVER
+                storyTimer = 0f
+                audioManager.playBgm(context, R.raw.bgm_main)
+                gameState = GameState.FAILURE_STORY
             }
         }
     }
@@ -728,9 +730,11 @@ class Game(private val context: Context) {
     }
 
     fun skipEndingStory() {
-        storyTimer = 0f
-        gameState = GameState.VICTORY
-        audioManager.playBgm(context, R.raw.bgm_main)
+        enterMainMenu()
+    }
+
+    fun skipFailureStory() {
+        enterMainMenu()
     }
 
     private fun enterMainMenu() {
@@ -830,6 +834,7 @@ class Game(private val context: Context) {
                 GameState.GAME_OVER -> renderGameOver(canvas)
                 GameState.VICTORY -> renderVictory(canvas)
                 GameState.ENDING_STORY -> renderEndingStory(canvas)
+                GameState.FAILURE_STORY -> renderFailureStory(canvas)
                 GameState.PLAYER_DEATH -> {
                     renderPlaying(canvas)
                     renderer.drawFade(canvas, gameOverFadeAlpha)
@@ -851,6 +856,10 @@ class Game(private val context: Context) {
 
     private fun renderEndingStory(canvas: android.graphics.Canvas) {
         renderer.renderEndingStory(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderFailureStory(canvas: android.graphics.Canvas) {
+        renderer.renderFailureStory(canvas, screenWidth, screenHeight)
     }
 
     private fun renderMultiplayerLobby(canvas: android.graphics.Canvas) {
@@ -1165,6 +1174,7 @@ class Game(private val context: Context) {
             }
             GameState.INTRO_STORY -> skipIntroStory()
             GameState.ENDING_STORY -> skipEndingStory()
+            GameState.FAILURE_STORY -> skipFailureStory()
             GameState.BLESSING_SELECT -> {
                 if (blessingSelector.currentOffering.isEmpty()) {
                     gameState = GameState.PLAYING

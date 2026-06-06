@@ -10,6 +10,7 @@ enum class GameState {
     LAYER_TRANSITION,
     BOSS_ENTRANCE,
     PLAYER_DEATH,
+    FAILURE_STORY,
     GAME_OVER,
     VICTORY,
     ENDING_STORY,

@@ -843,6 +843,20 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         drawStoryHint(canvas, w, h, "点击任意位置继续")
     }
 
+    fun renderFailureStory(canvas: Canvas, w: Int, h: Int) {
+        drawStoryBackdrop(canvas, w, h, Color.rgb(18, 8, 12), Color.rgb(42, 12, 20))
+        drawStoryFrame(canvas, w, h)
+        drawStoryTitle(canvas, w, h, "长夜未破", Color.parseColor("#FF8A8A"))
+
+        val lines = listOf(
+            "骑士倒在冥途深处，公主的呼唤被黑暗吞没。",
+            "三位守门者重新合上冥界之门，王国的黎明停在了最冷的夜里。",
+            "但誓言尚未消散。只要还有人举剑，故事就会再次开始。"
+        )
+        drawStoryText(canvas, w, h, lines, h * 0.36f)
+        drawStoryHint(canvas, w, h, "点击任意位置返回主菜单")
+    }
+
     private fun drawStoryBackdrop(canvas: Canvas, w: Int, h: Int, topColor: Int, bottomColor: Int) {
         renderer.resetPaint()
         if (renderer.enableShaders) {

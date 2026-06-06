@@ -206,6 +206,10 @@ class IsometricRenderer(val context: Context) {
         screenRenderer.renderEndingStory(canvas, w, h)
     }
 
+    fun renderFailureStory(canvas: Canvas, w: Int, h: Int) {
+        screenRenderer.renderFailureStory(canvas, w, h)
+    }
+
     fun renderMultiplayerLobby(canvas: Canvas, w: Int, h: Int) {
         screenRenderer.renderMultiplayerLobby(canvas, w, h)
     }

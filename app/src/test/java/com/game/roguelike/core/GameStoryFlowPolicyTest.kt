@@ -29,6 +29,17 @@ class GameStoryFlowPolicyTest {
 
         assertTrue(gameSource.contains("GameState.ENDING_STORY"))
         assertTrue(gameSource.contains("skipEndingStory()"))
+        assertTrue(gameSource.contains("fun skipEndingStory() {\r\n        enterMainMenu()") ||
+            gameSource.contains("fun skipEndingStory() {\n        enterMainMenu()"))
+    }
+
+    @Test
+    fun `player death opens skippable failure story before returning to menu`() {
+        val gameSource = readSource("src/main/kotlin/com/game/roguelike/core/Game.kt")
+
+        assertTrue(gameSource.contains("GameState.FAILURE_STORY"))
+        assertTrue(gameSource.contains("skipFailureStory()"))
+        assertTrue(gameSource.contains("gameState = GameState.FAILURE_STORY"))
     }
 
     @Test
@@ -37,6 +48,7 @@ class GameStoryFlowPolicyTest {
 
         assertTrue(screenSource.contains("renderIntroStory"))
         assertTrue(screenSource.contains("renderEndingStory"))
+        assertTrue(screenSource.contains("renderFailureStory"))
     }
 
     private fun readSource(path: String): String {
