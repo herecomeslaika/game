@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        gameView.game.autoSaveIfNeeded()
         gameView.game.stop()
     }
 

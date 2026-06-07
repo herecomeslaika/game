@@ -124,6 +124,11 @@ class HUD {
         paint.color = Color.parseColor("#AABBCC")
         paint.textSize = 19f
         canvas.drawText(layerDisplayName(layerIndex), hudX, hudY + 88f, paint)
+        player.honorTitle?.let { title ->
+            paint.color = Color.parseColor("#FFE68A")
+            paint.textSize = 18f
+            canvas.drawText("称号：$title", hudX + 126f, hudY + 88f, paint)
+        }
     }
 
     private fun layerDisplayName(layerIndex: Int): String {

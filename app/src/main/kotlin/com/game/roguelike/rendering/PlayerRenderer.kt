@@ -369,6 +369,10 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
         p.style = Paint.Style.FILL
         canvas.drawPoint(sx + 2f, sy - 41f + bodyOffset, p)
 
+        if (player.eternalCrown) {
+            drawEternalCrown(canvas, sx, sy + bodyOffset, player)
+        }
+
         // === SWORD (detailed blade with fuller and gradient) ===
         drawPlayerSword(canvas, sx, sy + bodyOffset, player)
 
@@ -551,6 +555,52 @@ class PlayerRenderer(private val renderer: IsometricRenderer, private val contex
             p.strokeWidth = 1f
             canvas.drawRect(sx - barW / 2, sy - 58f + bodyOffset, sx + barW / 2, sy - 58f + barH + bodyOffset, p)
         }
+    }
+
+    private fun drawEternalCrown(canvas: Canvas, sx: Float, sy: Float, player: Player) {
+        val crownY = sy - 68f + (sin(player.idleTime * 2.2f) * 1.4f).toFloat()
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, crownY, 20f, Color.argb(95, 255, 226, 95), Color.argb(0, 255, 210, 80))
+        } else {
+            p.color = Color.argb(80, 255, 226, 95)
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, crownY, 20f, p)
+        p.shader = null
+
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeLinearGradient(sx - 13f, crownY - 9f, sx + 13f, crownY + 6f, Color.parseColor("#FFF2A8"), Color.parseColor("#D99A16"))
+        } else {
+            p.color = Color.parseColor("#FFD45A")
+        }
+        p.style = Paint.Style.FILL
+        val crown = renderer.obtainPath()
+        crown.moveTo(sx - 14f, crownY + 6f)
+        crown.lineTo(sx - 12f, crownY - 8f)
+        crown.lineTo(sx - 5f, crownY - 2f)
+        crown.lineTo(sx, crownY - 12f)
+        crown.lineTo(sx + 5f, crownY - 2f)
+        crown.lineTo(sx + 12f, crownY - 8f)
+        crown.lineTo(sx + 14f, crownY + 6f)
+        crown.close()
+        canvas.drawPath(crown, p)
+        renderer.recyclePath(crown)
+        p.shader = null
+
+        reset()
+        p.color = Color.parseColor("#D92323")
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, crownY - 3f, 2.6f, p)
+        canvas.drawCircle(sx - 9f, crownY + 2f, 2f, p)
+        canvas.drawCircle(sx + 9f, crownY + 2f, 2f, p)
+
+        reset()
+        p.color = Color.argb(210, 255, 250, 200)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 1.4f
+        canvas.drawLine(sx - 13f, crownY + 6f, sx + 13f, crownY + 6f, p)
     }
 
     private fun drawPlayerSword(canvas: Canvas, sx: Float, sy: Float, player: Player) {

@@ -3,9 +3,12 @@ package com.game.roguelike.rendering
 import android.graphics.*
 import com.game.roguelike.combat.Projectile
 import com.game.roguelike.combat.ProjectileType
+import com.game.roguelike.entity.BossRelic
+import com.game.roguelike.entity.BossRelicType
 import com.game.roguelike.entity.BossWarning
 import com.game.roguelike.entity.BossWarningShape
 import com.game.roguelike.entity.Merchant
+import com.game.roguelike.entity.MeteorMark
 import com.game.roguelike.entity.Particle
 import com.game.roguelike.level.Door
 import com.game.roguelike.level.Room
@@ -231,6 +234,170 @@ class EntityRenderer(private val renderer: IsometricRenderer) {
         p.style = Paint.Style.FILL
         canvas.drawCircle(sx, sy - particle.heightOffset, particle.size, p)
         p.shader = null
+    }
+
+    fun renderBossRelic(canvas: Canvas, relic: BossRelic, showPickupPrompt: Boolean) {
+        val (sx, baseSy) = renderer.worldToScreen(relic.position)
+        val bob = sin(relic.animTime * 2.4f) * 6f
+        val sy = baseSy - 20f + bob
+
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, baseSy + 7f, 22f, Color.argb(80, 0, 0, 0), Color.argb(0, 0, 0, 0))
+        } else {
+            p.color = Color.argb(70, 0, 0, 0)
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawOval(sx - 26f, baseSy - 3f, sx + 26f, baseSy + 15f, p)
+        p.shader = null
+
+        when (relic.type) {
+            BossRelicType.GIANT_BONE_CORE -> drawBoneCoreRelic(canvas, sx, sy, relic.animTime)
+            BossRelicType.TITAN_MOLTEN_HEART -> drawMoltenHeartRelic(canvas, sx, sy, relic.animTime)
+            BossRelicType.CROWN_OF_ETERNITY -> drawCrownRelic(canvas, sx, sy, relic.animTime)
+        }
+
+        renderer.textPaint.textAlign = Paint.Align.CENTER
+        renderer.textPaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.textPaint.textSize = 17f
+        renderer.textPaint.color = Color.argb(220, 255, 245, 205)
+        canvas.drawText(relic.type.displayName, sx, baseSy + 35f, renderer.textPaint)
+
+        if (showPickupPrompt) {
+            val promptBob = sin(relic.animTime * 4f) * 3f
+            renderer.textPaint.textSize = 18f
+            renderer.textPaint.color = Color.argb(235, 255, 236, 150)
+            canvas.drawText("按攻击键拾取", sx, sy - 52f + promptBob, renderer.textPaint)
+        }
+    }
+
+    fun renderMeteorMark(canvas: Canvas, mark: MeteorMark) {
+        val (sx, sy) = renderer.worldToScreen(mark.position)
+        val progress = mark.progress
+        val rx = mark.radius
+        val ry = mark.radius * 0.5f
+
+        reset()
+        p.style = Paint.Style.FILL
+        p.color = Color.argb((55 + progress * 95).toInt(), 255, 82, 24)
+        canvas.drawOval(sx - rx, sy - ry, sx + rx, sy + ry, p)
+
+        reset()
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 3f + progress * 4f
+        p.color = Color.argb(235, 255, 172, 47)
+        canvas.drawOval(sx - rx * progress, sy - ry * progress, sx + rx * progress, sy + ry * progress, p)
+
+        val meteorY = sy - 180f * (1f - progress) - 28f
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, meteorY, 18f, Color.parseColor("#FFFF66"), Color.argb(0, 255, 68, 0))
+        } else {
+            p.color = Color.parseColor("#FFAA22")
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, meteorY, 18f, p)
+        p.shader = null
+    }
+
+    private fun drawBoneCoreRelic(canvas: Canvas, sx: Float, sy: Float, t: Float) {
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, sy, 36f, Color.argb(130, 105, 230, 255), Color.argb(0, 16, 80, 130))
+        } else {
+            p.color = Color.argb(85, 80, 210, 255)
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy, 36f, p)
+        p.shader = null
+
+        reset()
+        p.color = Color.parseColor("#E7F7FF")
+        p.style = Paint.Style.FILL
+        canvas.drawOval(sx - 18f, sy - 20f, sx + 18f, sy + 14f, p)
+        canvas.drawRect(sx - 12f, sy + 6f, sx + 12f, sy + 22f, p)
+        reset()
+        p.color = Color.parseColor("#112233")
+        canvas.drawCircle(sx - 7f, sy - 6f, 4f, p)
+        canvas.drawCircle(sx + 7f, sy - 6f, 4f, p)
+        reset()
+        p.color = Color.argb(140, 70, 220, 255)
+        for (i in 0 until 4) {
+            val angle = t * 2f + i * 1.57f
+            canvas.drawCircle(sx + cos(angle) * 28f, sy + sin(angle) * 14f, 3f, p)
+        }
+    }
+
+    private fun drawMoltenHeartRelic(canvas: Canvas, sx: Float, sy: Float, t: Float) {
+        val pulse = 1f + sin(t * 6f) * 0.08f
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, sy, 38f * pulse, Color.argb(145, 255, 98, 22), Color.argb(0, 120, 20, 0))
+        } else {
+            p.color = Color.argb(100, 255, 80, 20)
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy, 38f * pulse, p)
+        p.shader = null
+
+        reset()
+        p.color = Color.parseColor("#C92F12")
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx - 10f * pulse, sy - 7f, 13f * pulse, p)
+        canvas.drawCircle(sx + 10f * pulse, sy - 7f, 13f * pulse, p)
+        val heart = renderer.obtainPath()
+        heart.moveTo(sx - 22f * pulse, sy - 1f)
+        heart.quadTo(sx, sy + 34f * pulse, sx + 22f * pulse, sy - 1f)
+        heart.lineTo(sx, sy + 22f * pulse)
+        heart.close()
+        canvas.drawPath(heart, p)
+        renderer.recyclePath(heart)
+
+        reset()
+        p.color = Color.parseColor("#FFCC45")
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = 3f
+        canvas.drawLine(sx - 14f, sy - 2f, sx + 10f, sy + 8f, p)
+        canvas.drawLine(sx - 4f, sy + 14f, sx + 16f, sy - 4f, p)
+    }
+
+    private fun drawCrownRelic(canvas: Canvas, sx: Float, sy: Float, t: Float) {
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeRadialGradient(sx, sy, 46f, Color.argb(135, 255, 218, 78), Color.argb(0, 255, 218, 78))
+        } else {
+            p.color = Color.argb(95, 255, 218, 78)
+        }
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy, 46f, p)
+        p.shader = null
+
+        reset()
+        if (useShaders) {
+            p.shader = renderer.makeLinearGradient(sx - 28f, sy - 18f, sx + 28f, sy + 18f, Color.parseColor("#FFF1A0"), Color.parseColor("#C98508"))
+        } else {
+            p.color = Color.parseColor("#FFD45A")
+        }
+        p.style = Paint.Style.FILL
+        val crown = renderer.obtainPath()
+        crown.moveTo(sx - 30f, sy + 18f)
+        crown.lineTo(sx - 24f, sy - 14f)
+        crown.lineTo(sx - 10f, sy + 1f)
+        crown.lineTo(sx, sy - 22f)
+        crown.lineTo(sx + 10f, sy + 1f)
+        crown.lineTo(sx + 24f, sy - 14f)
+        crown.lineTo(sx + 30f, sy + 18f)
+        crown.close()
+        canvas.drawPath(crown, p)
+        renderer.recyclePath(crown)
+        p.shader = null
+
+        reset()
+        p.color = Color.parseColor("#E11D48")
+        p.style = Paint.Style.FILL
+        canvas.drawCircle(sx, sy + 2f + sin(t * 3f) * 1f, 5f, p)
+        canvas.drawCircle(sx - 19f, sy + 10f, 3f, p)
+        canvas.drawCircle(sx + 19f, sy + 10f, 3f, p)
     }
 
     fun renderBossWarning(canvas: Canvas, warning: BossWarning) {

@@ -125,6 +125,13 @@ class Player : Entity() {
     var isDashInvincible = false
         private set
 
+    // Boss relic powers
+    var undeadDash = false
+    var moltenStrike = false
+    var eternalCrown = false
+    val honorTitle: String?
+        get() = if (eternalCrown) "极乐之主" else null
+
     // Hurt state
     var hurtTimer = 0f
     var invincibleTimer = 0f
@@ -177,6 +184,7 @@ class Player : Entity() {
         comboAlwaysCrit = false; supportFreeze = false; hasSummon = false
         duoHeartLightning = false; duoThunderShield = false; duoBloodHeart = false
         duoSpeedShield = false; duoIceBlood = false; duoDeathLove = false; duoJudgement = false
+        undeadDash = false; moltenStrike = false; eternalCrown = false
         ownedGods.clear()
         shieldInvincibleDuration = 0f
     }
@@ -473,7 +481,11 @@ class Player : Entity() {
 
         specialCooldownTimer = specialCooldown
         stateMachine.transitionTo(PlayerState.SPECIAL)
-        game.audioManager.play("special")
+        if (moltenStrike) {
+            game.audioManager.play("fireball")
+        } else {
+            game.audioManager.play("special")
+        }
 
         val nearest = findNearestEnemy(game)
         val baseDirection = if (nearest != null) {
@@ -490,8 +502,8 @@ class Player : Entity() {
             val knife = Projectile(
                 position = Vector2(position.x + knifeDir.x * 15f, position.y + knifeDir.y * 15f),
                 velocity = knifeDir * 500f,
-                damage = specialDamage + allDamageBonus,
-                type = ProjectileType.KNIFE,
+                damage = if (moltenStrike) (specialDamage + allDamageBonus) * 1.5f else specialDamage + allDamageBonus,
+                type = if (moltenStrike) ProjectileType.FIREBALL else ProjectileType.KNIFE,
                 maxRange = 500f,
                 pierce = knifePierce,
                 explosive = knifeExplosive,
@@ -741,7 +753,6 @@ class Player : Entity() {
                 }
 
                 enemy.takeDamage(finalDmg, game)
-
                 // Knockback: push enemy away from player
                 val knockDir = (enemy.position - position).normalized
                 val knockForce = when (comboStep) {
@@ -910,7 +921,10 @@ class Player : Entity() {
                 val ty = gridY + dy
                 if (tx < 0 || tx >= room.width || ty < 0 || ty >= room.height) continue
                 val tile = room.getTile(tx, ty)
-                if (tile == Room.TILE_OBSTACLE || tile == Room.TILE_PILLAR || tile == Room.TILE_LAVA || tile == Room.TILE_WATER) {
+                val ignoresCollisionDuringRelicDash = undeadDash && isDashing
+                if (!ignoresCollisionDuringRelicDash &&
+                    (tile == Room.TILE_OBSTACLE || tile == Room.TILE_PILLAR || tile == Room.TILE_LAVA || tile == Room.TILE_WATER || tile == Room.TILE_WALL)
+                ) {
                     val tileMinX = tx * tw
                     val tileMinY = ty * th
                     val tileMaxX = tileMinX + tw
@@ -944,5 +958,33 @@ class Player : Entity() {
 
     override fun render(canvas: Canvas, renderer: IsometricRenderer) {
         renderer.renderPlayer(canvas, this)
+    }
+
+    fun grantBossRelic(type: BossRelicType) {
+        when (type) {
+            BossRelicType.GIANT_BONE_CORE -> undeadDash = true
+            BossRelicType.TITAN_MOLTEN_HEART -> moltenStrike = true
+            BossRelicType.CROWN_OF_ETERNITY -> eternalCrown = true
+        }
+    }
+
+    fun hasBossRelic(type: BossRelicType): Boolean {
+        return when (type) {
+            BossRelicType.GIANT_BONE_CORE -> undeadDash
+            BossRelicType.TITAN_MOLTEN_HEART -> moltenStrike
+            BossRelicType.CROWN_OF_ETERNITY -> eternalCrown
+        }
+    }
+
+    fun bossRelicIds(): List<String> {
+        return buildList {
+            if (undeadDash) add(BossRelicType.GIANT_BONE_CORE.id)
+            if (moltenStrike) add(BossRelicType.TITAN_MOLTEN_HEART.id)
+            if (eternalCrown) add(BossRelicType.CROWN_OF_ETERNITY.id)
+        }
+    }
+
+    fun restoreBossRelics(ids: List<String>) {
+        ids.mapNotNull { BossRelicType.fromId(it) }.forEach { grantBossRelic(it) }
     }
 }

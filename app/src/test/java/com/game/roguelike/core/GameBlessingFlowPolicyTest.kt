@@ -14,9 +14,8 @@ class GameBlessingFlowPolicyTest {
         val clearBlock = gameSource.substringAfter("// Check room clear")
             .substringBefore("// Spike damage")
 
-        assertTrue(clearBlock.contains("RoomType.COMBAT"))
-        assertTrue(clearBlock.contains("RoomType.ELITE"))
-        assertTrue(clearBlock.contains("RoomType.BOSS"))
+        assertTrue(clearBlock.contains("RoomClearRewardPolicy.canClearAfterCombat"))
+        assertTrue(clearBlock.contains("RoomClearRewardPolicy.grantsBlessing"))
         assertTrue(clearBlock.contains("bossFightStarted"))
     }
 

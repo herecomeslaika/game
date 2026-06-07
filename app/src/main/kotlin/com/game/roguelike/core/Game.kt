@@ -20,6 +20,8 @@ import com.game.roguelike.event.EventEffect
 import com.game.roguelike.event.FateOutcome
 import com.game.roguelike.level.*
 import com.game.roguelike.rendering.IsometricRenderer
+import com.game.roguelike.save.GameSaveData
+import com.game.roguelike.save.GameSaveManager
 import com.game.roguelike.shop.Shop
 import com.game.roguelike.ui.ShopTouchResult
 import com.game.roguelike.ui.*
@@ -30,6 +32,7 @@ import kotlin.math.min
 class Game(private val context: Context) {
 
     private var holder: SurfaceHolder? = null
+    @Volatile
     private var running = false
     private var gameThread: Thread? = null
 
@@ -45,6 +48,8 @@ class Game(private val context: Context) {
     val particles = mutableListOf<Particle>()
     val ghosts = mutableListOf<GhostSummon>()
     val bossWarnings = mutableListOf<BossWarning>()
+    val bossRelics = mutableListOf<BossRelic>()
+    val meteorMarks = mutableListOf<MeteorMark>()
 
     var currentLayer: Layer? = null
     var currentRoom: Room? = null
@@ -65,6 +70,7 @@ class Game(private val context: Context) {
 
     val audioManager = AudioManager(context)
     val roomManager = RoomManager(context)
+    private val saveManager = GameSaveManager(context)
 
     var shakeAmount = 0f
     var shakeDuration = 0f
@@ -93,6 +99,8 @@ class Game(private val context: Context) {
     var bossPhaseTextTimer = 0f
     var timeScale = 1f
     private var hitstopTimer = 0f
+    var pendingBossRelicStoryType: BossRelicType? = null
+    private var crownTrailTimer = 0f
 
     fun triggerHitstop(frames: Int) {
         hitstopTimer = frames * TICK
@@ -125,7 +133,9 @@ class Game(private val context: Context) {
     private var accumulator = 0f
     private var lastTime = 0L
 
+    @Synchronized
     fun start(holder: SurfaceHolder) {
+        if (running) return
         this.holder = holder
         running = true
         lastTime = System.nanoTime()
@@ -146,7 +156,9 @@ class Game(private val context: Context) {
         gameThread?.start()
     }
 
+    @Synchronized
     fun stop() {
+        autoSaveIfNeeded()
         running = false
         audioManager.pauseBgm()
         try {
@@ -154,6 +166,7 @@ class Game(private val context: Context) {
         } catch (e: InterruptedException) {
             // ignore
         }
+        gameThread = null
     }
 
     fun resumeAudio() {
@@ -195,7 +208,7 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
-            GameState.INTRO_STORY, GameState.BLESSING_STORY, GameState.ENDING_STORY, GameState.FAILURE_STORY -> updateStory(dt)
+            GameState.INTRO_STORY, GameState.BLESSING_STORY, GameState.BOSS_RELIC_STORY, GameState.ENDING_STORY, GameState.FAILURE_STORY -> updateStory(dt)
             GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
             GameState.ROOM_LIST -> updateRoomList(dt)
             GameState.ROOM_WAITING -> updateRoomWaiting(dt)
@@ -204,7 +217,7 @@ class Game(private val context: Context) {
             GameState.BLESSING_SELECT -> updateBlessingSelect(dt)
             GameState.SHOP -> updateShop(dt)
             GameState.EVENT -> updateEvent(dt)
-            GameState.OPTIONS, GameState.EXIT_CONFIRM -> {}
+            GameState.OPTIONS, GameState.EXIT_CONFIRM, GameState.LOAD_SAVE_CONFIRM, GameState.SAVE_GAME_CONFIRM -> {}
             GameState.LAYER_TRANSITION -> updateTransition(dt)
             GameState.GAME_OVER, GameState.VICTORY -> updateEndScreen(dt)
             GameState.PLAYER_DEATH -> updatePlayerDeath(dt)
@@ -248,6 +261,9 @@ class Game(private val context: Context) {
         // Process attack input (long press = charge, release = whirlwind or short tap = combo)
         if (input.attackReleased) {
             input.attackReleased = false
+            if (tryPickupNearbyBossRelic()) {
+                return
+            }
             // Check merchant interaction first (short tap near merchant)
             val nearMerchant = merchant?.let { m -> !m.talked && m.isNearPlayer } == true
             if (nearMerchant) {
@@ -299,6 +315,9 @@ class Game(private val context: Context) {
 
         // Player update
         player.update(dt, this)
+        updateBossRelics(dt)
+        updateMeteorMarks(dt)
+        updateCrownTrail(dt)
 
         // Merchant update
         merchant?.update(dt, this)
@@ -321,6 +340,9 @@ class Game(private val context: Context) {
         while (enemyIter.hasNext()) {
             val enemy = enemyIter.next()
             if (enemy.isDead && enemy.deathAnimationDone) {
+                if (enemy.isBoss) {
+                    spawnBossRelic(enemy)
+                }
                 val dropAmount = if (currentRoom?.type == RoomType.ELITE) enemy.goldDrop * 2 else enemy.goldDrop
                 gold += dropAmount
                 audioManager.play("enemy_death")
@@ -370,16 +392,15 @@ class Game(private val context: Context) {
         }
 
         // Check room clear
-        val canGrantRoomClearReward = room.type == RoomType.COMBAT ||
-            room.type == RoomType.ELITE ||
-            (room.type == RoomType.BOSS && bossFightStarted)
-        if (canGrantRoomClearReward && !room.cleared) {
+        val canClearAfterCombat = RoomClearRewardPolicy.canClearAfterCombat(room.type, bossFightStarted)
+        if (canClearAfterCombat && !room.cleared) {
             if (enemies.isEmpty()) {
                 room.cleared = true
                 room.unlockDoors()
-                // Combat and boss victories grant blessing selection after the fight is truly over.
-                gameState = GameState.BLESSING_SELECT
-                blessingSelector.generateOffering(currentLayerIndex, blessings)
+                if (RoomClearRewardPolicy.grantsBlessing(room.type, currentLayerIndex, bossFightStarted)) {
+                    gameState = GameState.BLESSING_SELECT
+                    blessingSelector.generateOffering(currentLayerIndex, blessings)
+                }
             }
         }
 
@@ -555,6 +576,127 @@ class Game(private val context: Context) {
         }
     }
 
+    private fun updateBossRelics(dt: Float) {
+        val iter = bossRelics.iterator()
+        while (iter.hasNext()) {
+            val relic = iter.next()
+            relic.update(dt)
+            if (relic.type == BossRelicType.TITAN_MOLTEN_HEART && kotlin.random.Random.nextFloat() < 0.28f) {
+                particles.add(Particle(
+                    position = Vector2(relic.position.x, relic.position.y),
+                    velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 35f, -45f - kotlin.random.Random.nextFloat() * 45f),
+                    color = android.graphics.Color.parseColor("#FF9A24"),
+                    life = 0.55f,
+                    size = 3f + kotlin.random.Random.nextFloat() * 2f,
+                    heightOffset = 8f
+                ))
+            }
+
+        }
+    }
+
+    private fun tryPickupNearbyBossRelic(): Boolean {
+        val relic = bossRelics.firstOrNull { player.position.distanceTo(it.position) < 64f } ?: return false
+        applyBossRelic(relic.type)
+        bossRelics.remove(relic)
+        return true
+    }
+
+    private fun updateMeteorMarks(dt: Float) {
+        val iter = meteorMarks.iterator()
+        while (iter.hasNext()) {
+            val mark = iter.next()
+            if (mark.update(dt)) {
+                explodeMeteorMark(mark)
+                iter.remove()
+            }
+        }
+    }
+
+    private fun updateCrownTrail(dt: Float) {
+        if (!player.eternalCrown) return
+        val isMoving = player.stateMachine.currentState == PlayerState.RUN || player.isDashing
+        if (!isMoving) return
+
+        crownTrailTimer -= dt
+        if (crownTrailTimer <= 0f) {
+            crownTrailTimer = 0.08f
+            particles.add(Particle(
+                position = Vector2(player.position.x, player.position.y + 5f),
+                velocity = Vector2((kotlin.random.Random.nextFloat() - 0.5f) * 18f, -12f - kotlin.random.Random.nextFloat() * 18f),
+                color = android.graphics.Color.parseColor("#FFE68A"),
+                life = 0.45f,
+                size = 2f + kotlin.random.Random.nextFloat() * 1.8f
+            ))
+        }
+    }
+
+    private fun spawnBossRelic(enemy: Enemy) {
+        val type = BossRelicType.forLayer(enemy.layerIndex)
+        if (player.hasBossRelic(type)) return
+        if (bossRelics.any { it.type == type }) return
+        bossRelics.add(BossRelic(type, enemy.position))
+    }
+
+    private fun applyBossRelic(type: BossRelicType) {
+        if (!player.hasBossRelic(type)) {
+            player.grantBossRelic(type)
+        }
+        pendingBossRelicStoryType = type
+        storyTimer = 0f
+        gameState = GameState.BOSS_RELIC_STORY
+        audioManager.play("pickup")
+        shake(if (type.grantsCombatPower) 7f else 5f, 0.25f)
+
+        val color = when (type) {
+            BossRelicType.GIANT_BONE_CORE -> android.graphics.Color.parseColor("#72E6FF")
+            BossRelicType.TITAN_MOLTEN_HEART -> android.graphics.Color.parseColor("#FF7A22")
+            BossRelicType.CROWN_OF_ETERNITY -> android.graphics.Color.parseColor("#FFE68A")
+        }
+        for (i in 0 until 28) {
+            val angle = kotlin.random.Random.nextFloat() * 6.28318f
+            val speed = 50f + kotlin.random.Random.nextFloat() * 130f
+            particles.add(Particle(
+                position = Vector2(player.position.x, player.position.y),
+                velocity = Vector2(kotlin.math.cos(angle) * speed, kotlin.math.sin(angle) * speed * 0.65f),
+                color = color,
+                life = 0.75f + kotlin.random.Random.nextFloat() * 0.45f,
+                size = 3f + kotlin.random.Random.nextFloat() * 3f
+            ))
+        }
+    }
+
+    fun spawnMeteorMark(position: Vector2) {
+        if (meteorMarks.size >= 10) return
+        meteorMarks.add(MeteorMark(position))
+    }
+
+    private fun explodeMeteorMark(mark: MeteorMark) {
+        shake(10f, 0.18f)
+        audioManager.play("enemy_death")
+        for (enemy in enemies) {
+            if (enemy.isDead) continue
+            val distance = enemy.position.distanceTo(mark.position)
+            if (distance <= mark.radius) {
+                enemy.takeDamage(mark.damage, this)
+                val knockDir = (enemy.position - mark.position).normalized
+                enemy.applyKnockback(knockDir.x * 240f, knockDir.y * 240f - 90f)
+            }
+        }
+
+        for (i in 0 until 32) {
+            val angle = kotlin.random.Random.nextFloat() * 6.28318f
+            val speed = 80f + kotlin.random.Random.nextFloat() * 220f
+            particles.add(Particle(
+                position = Vector2(mark.position.x, mark.position.y),
+                velocity = Vector2(kotlin.math.cos(angle) * speed, kotlin.math.sin(angle) * speed * 0.65f),
+                color = if (i % 3 == 0) android.graphics.Color.parseColor("#FFFF66") else android.graphics.Color.parseColor("#FF5A1F"),
+                life = 0.5f + kotlin.random.Random.nextFloat() * 0.35f,
+                size = 4f + kotlin.random.Random.nextFloat() * 4f
+            ))
+        }
+    }
+
     private fun updateBossWarnings(dt: Float) {
         if (bossPhaseTextTimer > 0f) {
             bossPhaseTextTimer -= dt
@@ -615,6 +757,8 @@ class Game(private val context: Context) {
         projectiles.clear()
         ghosts.clear()
         bossWarnings.clear()
+        bossRelics.clear()
+        meteorMarks.clear()
         bossPhaseText = ""
         bossPhaseTextTimer = 0f
         merchant = null
@@ -711,6 +855,8 @@ class Game(private val context: Context) {
         gold = 0
         blessings.clear()
         ghosts.clear()
+        bossRelics.clear()
+        meteorMarks.clear()
         player.reset()
         currentLayerIndex = 0
         currentLayer = Layer(currentLayerIndex)
@@ -774,6 +920,109 @@ class Game(private val context: Context) {
         blessing.onApply?.invoke(player)
     }
 
+    fun saveCurrentRun(): Boolean {
+        val saveData = createSaveData() ?: return false
+        saveManager.save(saveData)
+        return true
+    }
+
+    fun autoSaveIfNeeded() {
+        if (isSaveableGameplayState()) {
+            saveCurrentRun()
+        }
+    }
+
+    private fun isSaveableGameplayState(): Boolean {
+        if (player.isDead) return false
+        return gameState == GameState.PLAYING ||
+            gameState == GameState.BLESSING_SELECT ||
+            gameState == GameState.SHOP ||
+            gameState == GameState.EVENT ||
+            gameState == GameState.BOSS_ENTRANCE ||
+            gameState == GameState.BOSS_RELIC_STORY
+    }
+
+    private fun createSaveData(): GameSaveData? {
+        val layer = currentLayer ?: return null
+        val room = currentRoom ?: return null
+        val savedState = if (gameState == GameState.BLESSING_SELECT) GameState.BLESSING_SELECT.name else GameState.PLAYING.name
+        val offeringIds = if (gameState == GameState.BLESSING_SELECT) {
+            blessingSelector.currentOffering.map { it.id }
+        } else {
+            emptyList()
+        }
+        return GameSaveData(
+            version = 1,
+            layerIndex = currentLayerIndex.coerceIn(0, 2),
+            roomId = layer.currentRoomId,
+            roomCleared = room.cleared,
+            playerHealth = player.health.coerceAtLeast(1),
+            playerMaxHealth = player.maxHealth.coerceAtLeast(1),
+            gold = gold.coerceAtLeast(0),
+            blessingIds = blessings.map { it.id },
+            state = savedState,
+            offeringIds = offeringIds,
+            bossRelicIds = player.bossRelicIds(),
+            droppedBossRelics = bossRelics.map { it.toSaveString() }
+        )
+    }
+
+    private fun continueFromSave(): Boolean {
+        val save = saveManager.load() ?: return false
+        player.reset()
+        blessings.clear()
+        blessingSelector.clearOffering()
+
+        currentLayerIndex = save.layerIndex.coerceIn(0, 2)
+        currentLayer = Layer(currentLayerIndex)
+        val room = currentLayer!!.goToRoom(save.roomId)
+        loadRoom(room)
+
+        restoreBlessings(save.blessingIds)
+        player.restoreBossRelics(save.bossRelicIds)
+        player.maxHealth = save.playerMaxHealth.coerceAtLeast(1)
+        player.health = save.playerHealth.coerceIn(1, player.maxHealth)
+        gold = save.gold.coerceAtLeast(0)
+
+        currentRoom?.let { restoredRoom ->
+            restoredRoom.cleared = save.roomCleared
+            if (restoredRoom.cleared) {
+                restoredRoom.unlockDoors()
+                enemies.clear()
+                bossFightStarted = false
+                pendingBossType = null
+                timeScale = 1f
+                gameState = GameState.PLAYING
+            }
+        }
+
+        bossRelics.clear()
+        save.droppedBossRelics.mapNotNull { BossRelic.fromSaveString(it) }
+            .filter { !player.hasBossRelic(it.type) }
+            .forEach { bossRelics.add(it) }
+
+        val offerings = save.offeringIds.mapNotNull { findBlessingById(it) }
+        if (save.state == GameState.BLESSING_SELECT.name && offerings.isNotEmpty()) {
+            blessingSelector.restoreOffering(offerings)
+            gameState = GameState.BLESSING_SELECT
+        } else if (gameState != GameState.BOSS_ENTRANCE) {
+            gameState = GameState.PLAYING
+        }
+        return true
+    }
+
+    private fun restoreBlessings(ids: List<String>) {
+        ids.mapNotNull { findBlessingById(it) }.forEach { blessing ->
+            blessings.add(blessing)
+            player.ownedGods.add(blessing.god)
+            applyBlessingEffect(blessing, player)
+        }
+    }
+
+    private fun findBlessingById(id: String): Blessing? {
+        return (Blessing.ALL_BLESSINGS + Blessing.ALL_DUO_BLESSINGS).firstOrNull { it.id == id }
+    }
+
     private fun render() {
         val holder = this.holder ?: return
         var canvas: android.graphics.Canvas? = null
@@ -799,6 +1048,7 @@ class Game(private val context: Context) {
                 GameState.MENU -> renderMenu(canvas)
                 GameState.INTRO_STORY -> renderIntroStory(canvas)
                 GameState.BLESSING_STORY -> renderBlessingStory(canvas)
+                GameState.BOSS_RELIC_STORY -> renderBossRelicStory(canvas)
                 GameState.MULTIPLAYER_LOBBY -> renderMultiplayerLobby(canvas)
                 GameState.ROOM_LIST -> renderRoomList(canvas)
                 GameState.ROOM_WAITING -> renderRoomWaiting(canvas)
@@ -806,12 +1056,12 @@ class Game(private val context: Context) {
                 GameState.BOSS_ENTRANCE -> {
                     renderPlaying(canvas)
                     if (bossEntrancePhase == BossEntranceTimeline.CINEMATIC_PHASE) {
-                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight, currentLayerIndex)
                         currentRoom?.let {
                             renderer.renderBossEntranceCinematic(canvas, it, currentLayerIndex, bossEntranceTimer)
                         }
                     } else {
-                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight)
+                        renderer.renderBossEntrance(canvas, bossEntranceName, bossEntranceTitle, bossEntranceTimer, bossEntrancePhase, screenWidth, screenHeight, currentLayerIndex)
                     }
                 }
                 GameState.BLESSING_SELECT -> {
@@ -836,6 +1086,14 @@ class Game(private val context: Context) {
                         sfxVolume = audioManager.sfxVolume,
                         muted = audioManager.muted
                     )
+                }
+                GameState.LOAD_SAVE_CONFIRM -> {
+                    renderMenu(canvas)
+                    screenRenderer.renderLoadSaveConfirm(canvas, screenWidth, screenHeight)
+                }
+                GameState.SAVE_GAME_CONFIRM -> {
+                    renderPlaying(canvas)
+                    screenRenderer.renderSaveGameConfirm(canvas, screenWidth, screenHeight)
                 }
                 GameState.EXIT_CONFIRM -> {
                     if (pendingReturnState == GameState.PLAYING) {
@@ -874,6 +1132,10 @@ class Game(private val context: Context) {
 
     private fun renderBlessingStory(canvas: android.graphics.Canvas) {
         renderer.renderBlessingStory(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderBossRelicStory(canvas: android.graphics.Canvas) {
+        renderer.renderBossRelicStory(canvas, screenWidth, screenHeight, pendingBossRelicStoryType)
     }
 
     private fun renderEndingStory(canvas: android.graphics.Canvas) {
@@ -920,6 +1182,10 @@ class Game(private val context: Context) {
             renderer.renderBossWarning(canvas, warning)
         }
 
+        for (mark in meteorMarks) {
+            renderer.renderMeteorMark(canvas, mark)
+        }
+
         // Depth-sort entities
         val entities = mutableListOf<Entity>()
         entities.add(player)
@@ -940,6 +1206,10 @@ class Game(private val context: Context) {
         // Projectiles
         for (proj in projectiles) {
             renderer.renderProjectile(canvas, proj)
+        }
+
+        for (relic in bossRelics) {
+            renderer.renderBossRelic(canvas, relic, player.position.distanceTo(relic.position) < 96f)
         }
 
         // Ghost summons
@@ -1102,7 +1372,13 @@ class Game(private val context: Context) {
             }
             GameState.MENU -> {
                 when {
-                    screenRenderer.startBtnRect.contains(x, y) -> startIntroStory()
+                    screenRenderer.startBtnRect.contains(x, y) -> {
+                        if (saveManager.hasSave()) {
+                            gameState = GameState.LOAD_SAVE_CONFIRM
+                        } else {
+                            startIntroStory()
+                        }
+                    }
                     screenRenderer.multiplayerBtnRect.contains(x, y) -> gameState = GameState.MULTIPLAYER_LOBBY
                     screenRenderer.optionsBtnRect.contains(x, y) -> {
                         pendingReturnState = GameState.MENU
@@ -1149,11 +1425,34 @@ class Game(private val context: Context) {
                     screenRenderer.confirmCancelBtnRect.contains(x, y) -> gameState = pendingReturnState
                     screenRenderer.confirmOkBtnRect.contains(x, y) -> {
                         if (pendingReturnState == GameState.PLAYING) {
-                            enterMainMenu()
+                            gameState = GameState.SAVE_GAME_CONFIRM
                         } else {
                             val activity = context as android.app.Activity
                             activity.finishAndRemoveTask()
                         }
+                    }
+                }
+            }
+            GameState.LOAD_SAVE_CONFIRM -> {
+                when {
+                    screenRenderer.confirmCancelBtnRect.contains(x, y) -> {
+                        saveManager.deleteSave()
+                        startIntroStory()
+                    }
+                    screenRenderer.confirmOkBtnRect.contains(x, y) -> {
+                        if (!continueFromSave()) {
+                            saveManager.deleteSave()
+                            startIntroStory()
+                        }
+                    }
+                }
+            }
+            GameState.SAVE_GAME_CONFIRM -> {
+                when {
+                    screenRenderer.confirmCancelBtnRect.contains(x, y) -> enterMainMenu()
+                    screenRenderer.confirmOkBtnRect.contains(x, y) -> {
+                        saveCurrentRun()
+                        enterMainMenu()
                     }
                 }
             }
@@ -1202,6 +1501,11 @@ class Game(private val context: Context) {
                 }
             }
             GameState.BLESSING_STORY -> skipBlessingStory()
+            GameState.BOSS_RELIC_STORY -> {
+                if (storyTimer < 0.25f) return
+                pendingBossRelicStoryType = null
+                gameState = GameState.PLAYING
+            }
             GameState.ENDING_STORY -> skipEndingStory()
             GameState.FAILURE_STORY -> skipFailureStory()
             GameState.BLESSING_SELECT -> {

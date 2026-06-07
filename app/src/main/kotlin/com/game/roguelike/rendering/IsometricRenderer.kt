@@ -178,6 +178,14 @@ class IsometricRenderer(val context: Context) {
         entityRenderer.renderProjectile(canvas, proj)
     }
 
+    fun renderBossRelic(canvas: Canvas, relic: BossRelic, showPickupPrompt: Boolean) {
+        entityRenderer.renderBossRelic(canvas, relic, showPickupPrompt)
+    }
+
+    fun renderMeteorMark(canvas: Canvas, mark: MeteorMark) {
+        entityRenderer.renderMeteorMark(canvas, mark)
+    }
+
     fun renderParticle(canvas: Canvas, particle: Particle) {
         entityRenderer.renderParticle(canvas, particle)
     }
@@ -204,6 +212,10 @@ class IsometricRenderer(val context: Context) {
 
     fun renderBlessingStory(canvas: Canvas, w: Int, h: Int) {
         screenRenderer.renderBlessingStory(canvas, w, h)
+    }
+
+    fun renderBossRelicStory(canvas: Canvas, w: Int, h: Int, relicType: BossRelicType?) {
+        screenRenderer.renderBossRelicStory(canvas, w, h, relicType)
     }
 
     fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
@@ -238,8 +250,8 @@ class IsometricRenderer(val context: Context) {
         screenRenderer.drawFade(canvas, alpha)
     }
 
-    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int) {
-        screenRenderer.renderBossEntrance(canvas, bossName, bossTitle, timer, phase, w, h)
+    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int, layerIndex: Int) {
+        screenRenderer.renderBossEntrance(canvas, bossName, bossTitle, timer, phase, w, h, layerIndex)
     }
 
     // --- Color utility methods (used by sub-renderers) ---

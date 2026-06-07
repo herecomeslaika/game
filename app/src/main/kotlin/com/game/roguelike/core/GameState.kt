@@ -10,6 +10,7 @@ enum class GameState {
     BLESSING_SELECT,
     LAYER_TRANSITION,
     BOSS_ENTRANCE,
+    BOSS_RELIC_STORY,
     PLAYER_DEATH,
     FAILURE_STORY,
     GAME_OVER,
@@ -19,6 +20,8 @@ enum class GameState {
     ROOM_LIST,
     ROOM_WAITING,
     OPTIONS,
+    LOAD_SAVE_CONFIRM,
+    SAVE_GAME_CONFIRM,
     EXIT_CONFIRM
 }
 

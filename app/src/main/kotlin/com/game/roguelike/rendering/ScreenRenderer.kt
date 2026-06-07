@@ -3,6 +3,7 @@
 import android.content.Context
 import android.graphics.*
 import com.game.roguelike.R
+import com.game.roguelike.entity.BossRelicType
 import com.game.roguelike.network.LobbyPlayer
 import com.game.roguelike.network.LobbyRules
 import com.game.roguelike.network.RoomInfo
@@ -11,6 +12,57 @@ import kotlin.math.sin
 import kotlin.math.min
 
 class ScreenRenderer(private val renderer: IsometricRenderer, private val context: Context) {
+    private val START_BUTTON_COLOR = Color.parseColor("#FFD700")
+
+    private enum class BossEntranceTitleStyle {
+        TARTARUS,
+        ASPHODEL,
+        ELYSIUM
+    }
+
+    private data class BossEntranceTitleTheme(
+        val style: BossEntranceTitleStyle,
+        val overlayColor: Int,
+        val glowColor: Int,
+        val secondaryGlowColor: Int,
+        val nameColor: Int,
+        val subtitleColor: Int,
+        val lineColor: Int,
+        val accentColor: Int
+    )
+
+    private val TARTARUS_BOSS_TITLE_THEME = BossEntranceTitleTheme(
+        style = BossEntranceTitleStyle.TARTARUS,
+        overlayColor = Color.rgb(2, 15, 10),
+        glowColor = Color.rgb(42, 210, 126),
+        secondaryGlowColor = Color.rgb(126, 255, 185),
+        nameColor = Color.rgb(174, 255, 204),
+        subtitleColor = Color.rgb(118, 224, 156),
+        lineColor = Color.rgb(23, 176, 94),
+        accentColor = Color.rgb(205, 232, 198)
+    )
+
+    private val ASPHODEL_BOSS_TITLE_THEME = BossEntranceTitleTheme(
+        style = BossEntranceTitleStyle.ASPHODEL,
+        overlayColor = Color.rgb(28, 5, 3),
+        glowColor = Color.rgb(255, 76, 22),
+        secondaryGlowColor = Color.rgb(255, 180, 54),
+        nameColor = Color.rgb(255, 210, 88),
+        subtitleColor = Color.rgb(255, 122, 48),
+        lineColor = Color.rgb(239, 68, 68),
+        accentColor = Color.rgb(255, 98, 43)
+    )
+
+    private val ELYSIUM_BOSS_TITLE_THEME = BossEntranceTitleTheme(
+        style = BossEntranceTitleStyle.ELYSIUM,
+        overlayColor = Color.rgb(5, 13, 28),
+        glowColor = Color.rgb(255, 222, 105),
+        secondaryGlowColor = Color.rgb(110, 190, 255),
+        nameColor = Color.rgb(255, 242, 178),
+        subtitleColor = Color.rgb(178, 220, 255),
+        lineColor = Color.rgb(96, 165, 250),
+        accentColor = Color.rgb(255, 255, 238)
+    )
 
     // 加载主界面人物图片
     private val menuPlayerBitmap: Bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.people)
@@ -53,6 +105,11 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     private var lastPlayerCount = 0
 
         fun renderMenu(canvas: Canvas, w: Int, h: Int) {
+        renderer.resetPaint()
+        renderer.titlePaint.alpha = 255
+        renderer.subtitlePaint.alpha = 255
+        renderer.titlePaint.shader = null
+        renderer.subtitlePaint.shader = null
         renderer.paint.color = Color.parseColor("#0A0F19")
         renderer.paint.style = Paint.Style.FILL
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
@@ -83,8 +140,7 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         val btnX = titleX
         var btnY = menuStartY
 
-        val alpha = ((sin(renderer.globalTime * 2f) + 1) * 127 + 128).toInt()
-        renderer.subtitlePaint.color = Color.argb(alpha, 255, 215, 0)
+        renderer.subtitlePaint.color = START_BUTTON_COLOR
         renderer.subtitlePaint.textAlign = Paint.Align.LEFT
         renderer.subtitlePaint.textSize = menuFontSize
         renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
@@ -725,6 +781,59 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     }
 
     fun renderExitConfirm(canvas: Canvas, w: Int, h: Int, fromPlaying: Boolean) {
+        val message = if (fromPlaying) "返回主菜单会结束当前战斗" else "确定要关闭游戏吗"
+        drawConfirmDialog(
+            canvas = canvas,
+            w = w,
+            h = h,
+            title = "确认退出？",
+            message = message,
+            leftLabel = "取消",
+            rightLabel = "确认",
+            leftColor = Color.parseColor("#6B7280"),
+            rightColor = Color.parseColor("#EF4444")
+        )
+    }
+
+    fun renderLoadSaveConfirm(canvas: Canvas, w: Int, h: Int) {
+        drawConfirmDialog(
+            canvas = canvas,
+            w = w,
+            h = h,
+            title = "发现存档",
+            message = "从上次存档继续？",
+            leftLabel = "否",
+            rightLabel = "是",
+            leftColor = Color.parseColor("#6B7280"),
+            rightColor = Color.parseColor("#22C55E")
+        )
+    }
+
+    fun renderSaveGameConfirm(canvas: Canvas, w: Int, h: Int) {
+        drawConfirmDialog(
+            canvas = canvas,
+            w = w,
+            h = h,
+            title = "保存进度？",
+            message = "保存当前游戏进度吗",
+            leftLabel = "不保存",
+            rightLabel = "保存",
+            leftColor = Color.parseColor("#6B7280"),
+            rightColor = Color.parseColor("#22C55E")
+        )
+    }
+
+    private fun drawConfirmDialog(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        title: String,
+        message: String,
+        leftLabel: String,
+        rightLabel: String,
+        leftColor: Int,
+        rightColor: Int
+    ) {
         val panel = RectF(w * 0.28f, h * 0.30f, w * 0.72f, h * 0.68f)
         renderer.paint.color = Color.argb(225, 12, 18, 30)
         renderer.paint.style = Paint.Style.FILL
@@ -738,17 +847,16 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         renderer.titlePaint.textAlign = Paint.Align.CENTER
         renderer.titlePaint.color = Color.parseColor("#F3F4F6")
         renderer.titlePaint.textSize = 58f
-        canvas.drawText("确认退出？", panel.centerX(), panel.top + 80f, renderer.titlePaint)
+        canvas.drawText(title, panel.centerX(), panel.top + 80f, renderer.titlePaint)
 
         renderer.subtitlePaint.textAlign = Paint.Align.CENTER
         renderer.subtitlePaint.color = Color.parseColor("#D1D5DB")
         renderer.subtitlePaint.textSize = 30f
-        val message = if (fromPlaying) "返回主菜单会结束当前战斗" else "确定要关闭游戏吗"
         canvas.drawText(message, panel.centerX(), panel.top + 150f, renderer.subtitlePaint)
 
         val btnCy = panel.bottom - 70f
-        drawButtonWithGlow(canvas, panel.centerX() - 130f, btnCy, 180f, 68f, "取消", Color.parseColor("#6B7280"), confirmCancelBtnRect)
-        drawButtonWithGlow(canvas, panel.centerX() + 130f, btnCy, 180f, 68f, "确认", Color.parseColor("#EF4444"), confirmOkBtnRect)
+        drawButtonWithGlow(canvas, panel.centerX() - 130f, btnCy, 180f, 68f, leftLabel, leftColor, confirmCancelBtnRect)
+        drawButtonWithGlow(canvas, panel.centerX() + 130f, btnCy, 180f, 68f, rightLabel, rightColor, confirmOkBtnRect)
     }
     fun renderGameOver(canvas: Canvas, w: Int, h: Int) {
         // 背景渐变 - 暗红色
@@ -844,6 +952,57 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         )
         drawStoryText(canvas, w, h, lines, h * 0.36f)
         drawStoryHint(canvas, w, h, "点击任意位置进入游戏")
+    }
+
+    fun renderBossRelicStory(canvas: Canvas, w: Int, h: Int, relicType: BossRelicType?) {
+        val type = relicType ?: BossRelicType.GIANT_BONE_CORE
+        val topColor: Int
+        val bottomColor: Int
+        val titleColor: Int
+        val title: String
+        val lines: List<String>
+
+        when (type) {
+            BossRelicType.GIANT_BONE_CORE -> {
+                topColor = Color.rgb(4, 18, 16)
+                bottomColor = Color.rgb(12, 40, 34)
+                titleColor = Color.parseColor("#9EFAD1")
+                title = "巨灵陨落"
+                lines = listOf(
+                    "冥骨巨灵的骨墙崩解，幽蓝魂火从骸骨深处升起。",
+                    "你夺取了「巨灵骸骨晶核」，它将亡者的控场之力收束进你的步伐。",
+                    "【亡灵冲刺】冲刺阶段无法被选中，并可穿越障碍与危险地形。"
+                )
+            }
+            BossRelicType.TITAN_MOLTEN_HEART -> {
+                topColor = Color.rgb(36, 8, 3)
+                bottomColor = Color.rgb(78, 24, 8)
+                titleColor = Color.parseColor("#FFB347")
+                title = "泰坦熄火"
+                lines = listOf(
+                    "炼狱泰坦的烈焰坠入地面，只剩一颗仍在跳动的熔心。",
+                    "你夺取了「泰坦熔心」，飞刀技艺被熔火重铸为更狂暴的投射。",
+                    "【熔火打击】特殊技能投射物变为火球，最终物理伤害提升50%。"
+                )
+            }
+            BossRelicType.CROWN_OF_ETERNITY -> {
+                topColor = Color.rgb(10, 16, 30)
+                bottomColor = Color.rgb(34, 34, 58)
+                titleColor = Color.parseColor("#FFE68A")
+                title = "冠军易主"
+                lines = listOf(
+                    "永恒冠军的长枪沉默，极乐层的光辉终于承认了新的胜者。",
+                    "你拾起「永恒皇冠」，它不再证明力量，而是宣告你已无需证明。",
+                    "【无上荣耀】获得称号【极乐之主】，皇冠悬浮于头顶，足迹留下金色星光。"
+                )
+            }
+        }
+
+        drawStoryBackdrop(canvas, w, h, topColor, bottomColor)
+        drawStoryFrame(canvas, w, h)
+        drawStoryTitle(canvas, w, h, title, titleColor)
+        drawStoryText(canvas, w, h, lines, h * 0.36f)
+        drawStoryHint(canvas, w, h, "点击任意位置继续")
     }
 
     fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
@@ -982,89 +1141,246 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         canvas.drawRect(0f, 0f, renderer.screenWidth.toFloat(), renderer.screenHeight.toFloat(), renderer.paint)
     }
 
-    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int) {
+    fun renderBossEntrance(canvas: Canvas, bossName: String, bossTitle: String, timer: Float, phase: Int, w: Int, h: Int, layerIndex: Int) {
+        val theme = bossEntranceTitleTheme(layerIndex)
+        configureBossEntranceTitleText(h)
         when (phase) {
             0 -> {
-                // Phase 0: dark overlay fading in
+                // Phase 0: themed darkness gathering before the title reveal.
                 val overlayAlpha = min(timer / 1.5f, 1f) * 180f
-                renderer.paint.color = Color.argb(overlayAlpha.toInt(), 5, 2, 15)
+                renderer.paint.color = colorWithAlpha(theme.overlayColor, overlayAlpha)
                 renderer.paint.style = Paint.Style.FILL
                 canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
 
-                // Center glow
                 if (timer > 0.5f) {
                     val glowAlpha = min((timer - 0.5f) / 1f, 1f) * 60f
-                    renderer.paint.color = Color.argb(glowAlpha.toInt(), 170, 68, 255)
+                    renderer.paint.color = colorWithAlpha(theme.glowColor, glowAlpha)
                     val glowRadius = 80f + timer * 60f
                     canvas.drawCircle(w / 2f, h / 2f, glowRadius, renderer.paint)
+                    drawBossEntranceThemeAtmosphere(canvas, w, h, timer, theme, glowAlpha / 60f)
                 }
             }
             1 -> {
-                // Phase 1: dark overlay + boss name with gold outline
-                renderer.paint.color = Color.argb(180, 5, 2, 15)
+                renderer.paint.color = colorWithAlpha(theme.overlayColor, 184f)
                 renderer.paint.style = Paint.Style.FILL
                 canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
 
-                // Glow behind name
                 val glowPulse = (sin(timer * 4f) + 1f) * 0.5f
-                renderer.paint.color = Color.argb((40 + glowPulse * 30).toInt(), 170, 68, 255)
-                canvas.drawCircle(w / 2f, h * 0.42f, 120f + glowPulse * 30f, renderer.paint)
+                renderer.paint.color = colorWithAlpha(theme.glowColor, 44f + glowPulse * 34f)
+                canvas.drawCircle(w / 2f, h * 0.42f, 132f + glowPulse * 36f, renderer.paint)
+                renderer.paint.color = colorWithAlpha(theme.secondaryGlowColor, 18f + glowPulse * 22f)
+                canvas.drawCircle(w / 2f, h * 0.42f, 220f + glowPulse * 30f, renderer.paint)
+                drawBossEntranceThemeAtmosphere(canvas, w, h, timer, theme, 1f)
 
-                // Boss name — scale from large to normal
                 val nameProgress = min(timer / 0.6f, 1f)
                 val nameScale = 1f + (1f - nameProgress) * 0.8f
                 val nameAlpha = (nameProgress * 255).toInt()
 
                 canvas.save()
                 canvas.scale(nameScale, nameScale, w / 2f, h * 0.42f)
-
-                // Gold outline
-                renderer.titlePaint.color = Color.argb(nameAlpha, 255, 215, 0)
-                renderer.titlePaint.style = Paint.Style.FILL
-                renderer.titlePaint.strokeWidth = 0f
-                canvas.drawText(bossName, w / 2f, h * 0.42f, renderer.titlePaint)
-                renderer.titlePaint.style = Paint.Style.FILL
-                renderer.titlePaint.strokeWidth = 0f
-
+                drawBossEntranceTitleText(canvas, bossName, w / 2f, h * 0.42f, theme, nameAlpha)
                 canvas.restore()
 
-                // Title text (subtitle)
                 if (timer > 0.4f) {
                     val titleProgress = min((timer - 0.4f) / 0.5f, 1f)
                     val titleAlpha = (titleProgress * 200).toInt()
-                    renderer.subtitlePaint.color = Color.argb(titleAlpha, 170, 130, 200)
+                    renderer.subtitlePaint.color = colorWithAlpha(theme.subtitleColor, titleAlpha.toFloat())
+                    renderer.subtitlePaint.setShadowLayer(8f, 0f, 2f, colorWithAlpha(theme.glowColor, 170f))
                     canvas.drawText(bossTitle, w / 2f, h * 0.52f, renderer.subtitlePaint)
+                    renderer.subtitlePaint.clearShadowLayer()
                 }
 
-                // Decorative lines
                 val lineAlpha = (nameProgress * 120).toInt()
-                renderer.paint.color = Color.argb(lineAlpha, 170, 68, 255)
+                renderer.paint.color = colorWithAlpha(theme.lineColor, lineAlpha.toFloat())
                 renderer.paint.style = Paint.Style.STROKE
                 renderer.paint.strokeWidth = 2f
                 val lineW = min(timer / 0.8f, 1f) * w * 0.35f
+                canvas.drawLine(w / 2f - lineW, h * 0.47f, w / 2f + lineW, h * 0.47f, renderer.paint)
+                renderer.paint.strokeWidth = 5f
+                renderer.paint.color = colorWithAlpha(theme.glowColor, lineAlpha * 0.22f)
                 canvas.drawLine(w / 2f - lineW, h * 0.47f, w / 2f + lineW, h * 0.47f, renderer.paint)
                 renderer.paint.style = Paint.Style.FILL
                 renderer.paint.strokeWidth = 0f
             }
             2 -> {
-                // Phase 2: fade out
                 val fadeOut = min(timer / 0.5f, 1f)
                 val overlayAlpha = 180f * (1f - fadeOut)
-                renderer.paint.color = Color.argb(overlayAlpha.toInt(), 5, 2, 15)
+                renderer.paint.color = colorWithAlpha(theme.overlayColor, overlayAlpha)
                 renderer.paint.style = Paint.Style.FILL
                 canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), renderer.paint)
 
-                // Fading name
                 val nameAlpha = ((1f - fadeOut) * 255).toInt()
                 if (nameAlpha > 0) {
-                    renderer.titlePaint.color = Color.argb(nameAlpha, 255, 215, 0)
-                    canvas.drawText(bossName, w / 2f, h * 0.42f, renderer.titlePaint)
-
-                    renderer.subtitlePaint.color = Color.argb((nameAlpha * 0.78f).toInt(), 170, 130, 200)
+                    drawBossEntranceThemeAtmosphere(canvas, w, h, timer, theme, 1f - fadeOut)
+                    drawBossEntranceTitleText(canvas, bossName, w / 2f, h * 0.42f, theme, nameAlpha)
+                    renderer.subtitlePaint.color = colorWithAlpha(theme.subtitleColor, nameAlpha * 0.78f)
                     canvas.drawText(bossTitle, w / 2f, h * 0.52f, renderer.subtitlePaint)
                 }
             }
         }
+    }
+
+    private fun bossEntranceTitleTheme(layerIndex: Int): BossEntranceTitleTheme {
+        return when (layerIndex.coerceIn(0, 2)) {
+            0 -> TARTARUS_BOSS_TITLE_THEME
+            1 -> ASPHODEL_BOSS_TITLE_THEME
+            else -> ELYSIUM_BOSS_TITLE_THEME
+        }
+    }
+
+    private fun configureBossEntranceTitleText(h: Int) {
+        renderer.titlePaint.textAlign = Paint.Align.CENTER
+        renderer.titlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.titlePaint.textSize = (h * 0.12f).coerceIn(96f, 150f)
+        renderer.titlePaint.shader = null
+        renderer.titlePaint.style = Paint.Style.FILL
+        renderer.titlePaint.strokeWidth = 0f
+
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+        renderer.subtitlePaint.textSize = (h * 0.052f).coerceIn(44f, 64f)
+        renderer.subtitlePaint.shader = null
+    }
+
+    private fun drawBossEntranceTitleText(
+        canvas: Canvas,
+        text: String,
+        x: Float,
+        y: Float,
+        theme: BossEntranceTitleTheme,
+        alpha: Int
+    ) {
+        renderer.titlePaint.setShadowLayer(16f, 0f, 3f, colorWithAlpha(theme.glowColor, alpha * 0.72f))
+        renderer.titlePaint.style = Paint.Style.STROKE
+        renderer.titlePaint.strokeWidth = 8f
+        renderer.titlePaint.color = colorWithAlpha(Color.BLACK, alpha * 0.55f)
+        canvas.drawText(text, x, y, renderer.titlePaint)
+
+        renderer.titlePaint.style = Paint.Style.FILL
+        renderer.titlePaint.strokeWidth = 0f
+        renderer.titlePaint.color = colorWithAlpha(theme.nameColor, alpha.toFloat())
+        canvas.drawText(text, x, y, renderer.titlePaint)
+        renderer.titlePaint.clearShadowLayer()
+    }
+
+    private fun drawBossEntranceThemeAtmosphere(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timer: Float,
+        theme: BossEntranceTitleTheme,
+        alphaScale: Float
+    ) {
+        when (theme.style) {
+            BossEntranceTitleStyle.TARTARUS -> drawTartarusBossTitleAtmosphere(canvas, w, h, timer, theme, alphaScale)
+            BossEntranceTitleStyle.ASPHODEL -> drawAsphodelBossTitleAtmosphere(canvas, w, h, timer, theme, alphaScale)
+            BossEntranceTitleStyle.ELYSIUM -> drawElysiumBossTitleAtmosphere(canvas, w, h, timer, theme, alphaScale)
+        }
+    }
+
+    private fun drawTartarusBossTitleAtmosphere(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timer: Float,
+        theme: BossEntranceTitleTheme,
+        alphaScale: Float
+    ) {
+        renderer.paint.style = Paint.Style.FILL
+        for (i in 0 until 8) {
+            val drift = sin(timer * 1.2f + i) * 28f
+            val x = w * (0.18f + i * 0.09f)
+            val y = h * (0.34f + (i % 3) * 0.08f) + drift
+            val radius = 34f + (i % 4) * 13f
+            renderer.paint.color = colorWithAlpha(theme.glowColor, (16f + i * 2f) * alphaScale)
+            canvas.drawCircle(x, y, radius, renderer.paint)
+        }
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 3f
+        renderer.paint.color = colorWithAlpha(theme.accentColor, 70f * alphaScale)
+        for (i in 0 until 4) {
+            val x = w * (0.27f + i * 0.16f)
+            val y = h * (0.58f + sin(timer + i) * 0.025f)
+            canvas.drawLine(x - 18f, y, x + 18f, y + 7f, renderer.paint)
+            canvas.drawLine(x, y - 16f, x, y + 18f, renderer.paint)
+        }
+        renderer.paint.style = Paint.Style.FILL
+    }
+
+    private fun drawAsphodelBossTitleAtmosphere(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timer: Float,
+        theme: BossEntranceTitleTheme,
+        alphaScale: Float
+    ) {
+        renderer.paint.style = Paint.Style.FILL
+        for (i in 0 until 14) {
+            val x = w * (0.16f + (i % 7) * 0.115f)
+            val y = h * (0.28f + (i / 7) * 0.34f) + sin(timer * 3f + i) * 26f
+            val size = 10f + (i % 4) * 5f
+            val path = renderer.obtainPath()
+            path.moveTo(x, y - size)
+            path.lineTo(x + size * 1.3f, y)
+            path.lineTo(x, y + size)
+            path.lineTo(x - size * 1.3f, y)
+            path.close()
+            renderer.paint.color = colorWithAlpha(if (i % 2 == 0) theme.secondaryGlowColor else theme.accentColor, (55f + i * 3f) * alphaScale)
+            canvas.drawPath(path, renderer.paint)
+            renderer.recyclePath(path)
+        }
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 4f
+        renderer.paint.color = colorWithAlpha(theme.glowColor, 95f * alphaScale)
+        val lavaY = h * 0.58f + sin(timer * 2f) * 10f
+        canvas.drawLine(w * 0.22f, lavaY, w * 0.78f, lavaY + 18f, renderer.paint)
+        renderer.paint.style = Paint.Style.FILL
+    }
+
+    private fun drawElysiumBossTitleAtmosphere(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timer: Float,
+        theme: BossEntranceTitleTheme,
+        alphaScale: Float
+    ) {
+        val cx = w / 2f
+        val cy = h * 0.40f
+        val pulse = (sin(timer * 3f) + 1f) * 0.5f
+
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 5f
+        renderer.paint.color = colorWithAlpha(theme.glowColor, (115f + pulse * 60f) * alphaScale)
+        val halo = RectF(cx - 210f, cy - 92f, cx + 210f, cy + 92f)
+        canvas.drawOval(halo, renderer.paint)
+
+        renderer.paint.strokeWidth = 2.5f
+        renderer.paint.color = colorWithAlpha(theme.secondaryGlowColor, 95f * alphaScale)
+        for (i in 0 until 8) {
+            val angle = -0.9f + i * 0.26f
+            val x0 = cx + sin(angle) * 90f
+            val y0 = cy - 118f + sin(timer + i) * 7f
+            val x1 = cx + sin(angle) * 210f
+            val y1 = cy - 190f + sin(timer + i) * 12f
+            canvas.drawLine(x0, y0, x1, y1, renderer.paint)
+        }
+
+        renderer.paint.style = Paint.Style.FILL
+        renderer.paint.color = colorWithAlpha(theme.accentColor, 46f * alphaScale)
+        canvas.drawCircle(cx, cy, 270f + pulse * 26f, renderer.paint)
+    }
+
+    private fun colorWithAlpha(color: Int, alpha: Float): Int {
+        return Color.argb(
+            alpha.toInt().coerceIn(0, 255),
+            Color.red(color),
+            Color.green(color),
+            Color.blue(color)
+        )
     }
 }
 

@@ -80,4 +80,12 @@ class BlessingSelector {
     fun selectBlessing(index: Int): Blessing? {
         return if (index in currentOffering.indices) currentOffering[index] else null
     }
+
+    fun restoreOffering(blessings: List<Blessing>) {
+        currentOffering = blessings.distinctBy { it.id }.take(4)
+    }
+
+    fun clearOffering() {
+        currentOffering = emptyList()
+    }
 }

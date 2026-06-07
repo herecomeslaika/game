@@ -37,6 +37,7 @@ class AudioManager(context: Context) {
             "player_hurt" to R.raw.sfx_player_hurt,
             "dash" to R.raw.sfx_dash,
             "special" to R.raw.sfx_special,
+            "fireball" to R.raw.huoqiu_fire,
             "enemy_death" to R.raw.sfx_enemy_death,
             "boss_phase" to R.raw.sfx_boss_phase,
             "pickup" to R.raw.sfx_pickup,
@@ -106,8 +107,9 @@ class AudioManager(context: Context) {
         }
     }
 
+    @Synchronized
     fun playBgm(context: Context, resId: Int) {
-        if (currentBgmResId == resId) return
+        if (currentBgmResId == resId && bgmPlayer != null) return
         stopBgm()
         currentBgmResId = resId
         try {
@@ -123,6 +125,7 @@ class AudioManager(context: Context) {
         }
     }
 
+    @Synchronized
     fun stopBgm() {
         bgmPlayer?.let {
             try {
@@ -135,6 +138,7 @@ class AudioManager(context: Context) {
         currentBgmResId = 0
     }
 
+    @Synchronized
     fun pauseBgm() {
         bgmPlayer?.let {
             try {
@@ -144,6 +148,7 @@ class AudioManager(context: Context) {
         }
     }
 
+    @Synchronized
     fun resumeBgm() {
         bgmPlayer?.let {
             try {
