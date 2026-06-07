@@ -195,7 +195,7 @@ class Game(private val context: Context) {
         val scaledDt = dt * timeScale
         when (gameState) {
             GameState.MENU -> updateMenu(dt)
-            GameState.INTRO_STORY, GameState.ENDING_STORY, GameState.FAILURE_STORY -> updateStory(dt)
+            GameState.INTRO_STORY, GameState.BLESSING_STORY, GameState.ENDING_STORY, GameState.FAILURE_STORY -> updateStory(dt)
             GameState.MULTIPLAYER_LOBBY -> updateMultiplayerLobby(dt)
             GameState.ROOM_LIST -> updateRoomList(dt)
             GameState.ROOM_WAITING -> updateRoomWaiting(dt)
@@ -732,7 +732,17 @@ class Game(private val context: Context) {
         audioManager.playBgm(context, R.raw.bgm_main)
     }
 
+    fun continueIntroStory() {
+        storyTimer = 0f
+        gameState = GameState.BLESSING_STORY
+        audioManager.playBgm(context, R.raw.bgm_main)
+    }
+
     fun skipIntroStory() {
+        startNewRun()
+    }
+
+    fun skipBlessingStory() {
         startNewRun()
     }
 
@@ -788,6 +798,7 @@ class Game(private val context: Context) {
             when (gameState) {
                 GameState.MENU -> renderMenu(canvas)
                 GameState.INTRO_STORY -> renderIntroStory(canvas)
+                GameState.BLESSING_STORY -> renderBlessingStory(canvas)
                 GameState.MULTIPLAYER_LOBBY -> renderMultiplayerLobby(canvas)
                 GameState.ROOM_LIST -> renderRoomList(canvas)
                 GameState.ROOM_WAITING -> renderRoomWaiting(canvas)
@@ -859,6 +870,10 @@ class Game(private val context: Context) {
 
     private fun renderIntroStory(canvas: android.graphics.Canvas) {
         renderer.renderIntroStory(canvas, screenWidth, screenHeight)
+    }
+
+    private fun renderBlessingStory(canvas: android.graphics.Canvas) {
+        renderer.renderBlessingStory(canvas, screenWidth, screenHeight)
     }
 
     private fun renderEndingStory(canvas: android.graphics.Canvas) {
@@ -1179,7 +1194,14 @@ class Game(private val context: Context) {
                     gameState = GameState.MULTIPLAYER_LOBBY
                 }
             }
-            GameState.INTRO_STORY -> skipIntroStory()
+            GameState.INTRO_STORY -> {
+                if (screenRenderer.storyNextBtnRect.contains(x, y)) {
+                    continueIntroStory()
+                } else if (screenRenderer.storySkipBtnRect.contains(x, y)) {
+                    skipIntroStory()
+                }
+            }
+            GameState.BLESSING_STORY -> skipBlessingStory()
             GameState.ENDING_STORY -> skipEndingStory()
             GameState.FAILURE_STORY -> skipFailureStory()
             GameState.BLESSING_SELECT -> {

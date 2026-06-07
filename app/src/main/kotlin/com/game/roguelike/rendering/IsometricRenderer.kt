@@ -202,6 +202,10 @@ class IsometricRenderer(val context: Context) {
         screenRenderer.renderIntroStory(canvas, w, h)
     }
 
+    fun renderBlessingStory(canvas: Canvas, w: Int, h: Int) {
+        screenRenderer.renderBlessingStory(canvas, w, h)
+    }
+
     fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
         screenRenderer.renderEndingStory(canvas, w, h)
     }

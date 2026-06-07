@@ -30,6 +30,8 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
     val optionsBattleBgmBtnRect = RectF()
     val optionsBossBgmBtnRect = RectF()
     val optionsStopBgmBtnRect = RectF()
+    val storyNextBtnRect = RectF()
+    val storySkipBtnRect = RectF()
     
     // 联机大厅按钮区域
     val createRoomBtnRect = RectF()
@@ -821,7 +823,27 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
             "你是王国最后的骑士。穿过三层冥途，击败守门者，把她带回黎明。"
         )
         drawStoryText(canvas, w, h, lines, h * 0.36f)
-        drawStoryHint(canvas, w, h, "点击任意位置跳过")
+
+        val buttonTop = h * 0.68f
+        val buttonBottom = h * 0.755f
+        storyNextBtnRect.set(w * 0.365f, buttonTop, w * 0.49f, buttonBottom)
+        storySkipBtnRect.set(w * 0.51f, buttonTop, w * 0.635f, buttonBottom)
+        drawStoryButton(canvas, storyNextBtnRect, "下一页", Color.parseColor("#F7D56B"))
+        drawStoryButton(canvas, storySkipBtnRect, "跳过", Color.parseColor("#B9C7FF"))
+    }
+
+    fun renderBlessingStory(canvas: Canvas, w: Int, h: Int) {
+        drawStoryBackdrop(canvas, w, h, Color.rgb(10, 10, 22), Color.rgb(30, 26, 52))
+        drawStoryFrame(canvas, w, h)
+        drawStoryTitle(canvas, w, h, "七神的祝福", Color.parseColor("#FFE071"))
+
+        val lines = listOf(
+            "骑士踏入冥途之前，七神的目光越过星火与深渊。",
+            "宙斯、阿佛洛狄忒、雅典娜、阿瑞斯、赫尔墨斯、波塞冬、哈迪斯将回应你的誓言。",
+            "每一次祝福都会改变战斗方式。选择神赐之力，穿过三层冥途，救回公主。"
+        )
+        drawStoryText(canvas, w, h, lines, h * 0.36f)
+        drawStoryHint(canvas, w, h, "点击任意位置进入游戏")
     }
 
     fun renderEndingStory(canvas: Canvas, w: Int, h: Int) {
@@ -917,6 +939,24 @@ class ScreenRenderer(private val renderer: IsometricRenderer, private val contex
         renderer.subtitlePaint.textSize = (h * 0.032f).coerceIn(30f, 42f)
         renderer.subtitlePaint.color = Color.argb(alpha, 255, 229, 165)
         canvas.drawText(hint, w / 2f, h * 0.74f, renderer.subtitlePaint)
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT
+    }
+
+    private fun drawStoryButton(canvas: Canvas, rect: RectF, label: String, accentColor: Int) {
+        renderer.paint.color = Color.argb(185, 18, 20, 35)
+        renderer.paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(rect, 14f, 14f, renderer.paint)
+
+        renderer.paint.color = accentColor
+        renderer.paint.style = Paint.Style.STROKE
+        renderer.paint.strokeWidth = 3f
+        canvas.drawRoundRect(rect, 14f, 14f, renderer.paint)
+
+        renderer.subtitlePaint.textAlign = Paint.Align.CENTER
+        renderer.subtitlePaint.typeface = Typeface.DEFAULT_BOLD
+        renderer.subtitlePaint.textSize = ((rect.bottom - rect.top) * 0.46f).coerceIn(30f, 42f)
+        renderer.subtitlePaint.color = accentColor
+        canvas.drawText(label, rect.centerX(), rect.centerY() - (renderer.subtitlePaint.ascent() + renderer.subtitlePaint.descent()) / 2f, renderer.subtitlePaint)
         renderer.subtitlePaint.typeface = Typeface.DEFAULT
     }
 

@@ -3,6 +3,7 @@ package com.game.roguelike.core
 enum class GameState {
     MENU,
     INTRO_STORY,
+    BLESSING_STORY,
     PLAYING,
     SHOP,
     EVENT,
